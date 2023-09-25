@@ -1,7 +1,8 @@
 scale: 1
 verbose: False
 device: "cuda:0"
-keyframe_device: "cuda:0" ## Change this to "cpu" to reduce GPU memory usage
+#keyframe_device: "cuda:0" ## Change this to "cpu" to reduce GPU memory usage
+keyframe_device: "cpu"
 planes_res:
   coarse: 0.24
   fine: 0.06

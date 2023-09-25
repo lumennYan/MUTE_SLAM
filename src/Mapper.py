@@ -342,7 +342,7 @@ class Mapper(object):
                 det_rays_o = batch_rays_o.clone().detach().unsqueeze(-1)
                 det_rays_d = batch_rays_d.clone().detach().unsqueeze(-1)
                 t = (self.bound.unsqueeze(0).to(
-                    device)-det_rays_o)*det_rays_d/det_rays_d.norm(dim=1).unsqueeze(-1)
+                    device)-det_rays_o)/det_rays_d
                 t, _ = torch.min(torch.max(t, dim=2)[0], dim=1)
                 inside_mask = t >= batch_gt_depth
             batch_rays_d = batch_rays_d[inside_mask]
