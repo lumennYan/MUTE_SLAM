@@ -54,6 +54,7 @@ from src.utils.datasets import get_dataset
 from src.utils.Logger import Logger
 from src.utils.Mesher import Mesher
 from src.utils.Renderer import Renderer
+from encoding import get_encoder
 
 torch.multiprocessing.set_sharing_strategy('file_system')
 
@@ -205,15 +206,26 @@ class ESLAM():
         self.fine_c_planes_res = cfg['c_planes_res']['fine']
 
         c_dim = cfg['model']['c_dim']
-        xyz_len = self.bound[:, 1]-self.bound[:, 0]
+
+
+
 
         ####### Initializing Planes ############
-        planes_xy, planes_xz, planes_yz = [], [], []
-        c_planes_xy, c_planes_xz, c_planes_yz = [], [], []
-        planes_res = [self.coarse_planes_res, self.fine_planes_res]
-        c_planes_res = [self.coarse_c_planes_res, self.fine_c_planes_res]
+        #planes_xy, planes_xz, planes_yz = [], [], []
+        #c_planes_xy, c_planes_xz, c_planes_yz = [], [], []
+        #planes_res = [self.coarse_planes_res, self.fine_planes_res]
+        #c_planes_res = [self.coarse_c_planes_res, self.fine_c_planes_res]
 
-        planes_dim = c_dim
+        #planes_dim = c_dim
+
+        planes_xy, self.planes_dim = get_encoder('hashgrid', input_dim=2, desired_resolution=512)
+        planes_xz, _ = get_encoder('hashgrid', input_dim=2, desired_resolution=512)
+        planes_yz, _ = get_encoder('hashgrid', input_dim=2, desired_resolution=512)
+        c_planes_xy, _ = get_encoder('hashgrid', input_dim=2, desired_resolution=512)
+        c_planes_xz, _ = get_encoder('hashgrid', input_dim=2, desired_resolution=512)
+        c_planes_yz, _ = get_encoder('hashgrid', input_dim=2, desired_resolution=512)
+
+        '''
         for grid_res in planes_res:
             grid_shape = list(map(int, (xyz_len / grid_res).tolist()))
             grid_shape[0], grid_shape[2] = grid_shape[2], grid_shape[0]
@@ -227,6 +239,11 @@ class ESLAM():
             c_planes_xy.append(torch.empty([1, planes_dim, *grid_shape[1:]]).normal_(mean=0, std=0.01))
             c_planes_xz.append(torch.empty([1, planes_dim, grid_shape[0], grid_shape[2]]).normal_(mean=0, std=0.01))
             c_planes_yz.append(torch.empty([1, planes_dim, *grid_shape[:2]]).normal_(mean=0, std=0.01))
+        '''
+
+
+
+
 
         self.shared_planes_xy = planes_xy
         self.shared_planes_xz = planes_xz

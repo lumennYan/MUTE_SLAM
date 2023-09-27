@@ -64,13 +64,13 @@ class Decoders(nn.Module):
 
         ## layers for SDF decoder
         self.linears = nn.ModuleList(
-            [nn.Linear(2 * c_dim, hidden_size)] +
+            [nn.Linear(c_dim, hidden_size)] +
             [nn.Linear(hidden_size, hidden_size) for i in range(n_blocks - 1)])
 
         ## layers for RGB decoder
         self.c_linears = nn.ModuleList(
-            [nn.Linear(2 * c_dim, hidden_size)] +
-            [nn.Linear(hidden_size, hidden_size)  for i in range(n_blocks - 1)])
+            [nn.Linear(c_dim, hidden_size)] +
+            [nn.Linear(hidden_size, hidden_size) for i in range(n_blocks - 1)])
 
         self.output_linear = nn.Linear(hidden_size, 1)
         self.c_output_linear = nn.Linear(hidden_size, 3)
@@ -91,6 +91,8 @@ class Decoders(nn.Module):
         Returns:
             feat (tensor): sampled features
         """
+
+        '''
         vgrid = p_nor[None, :, None]
 
         feat = []
@@ -99,7 +101,13 @@ class Decoders(nn.Module):
             xz = F.grid_sample(planes_xz[i], vgrid[..., [0, 2]], padding_mode='border', align_corners=True, mode='bilinear').squeeze().transpose(0, 1)
             yz = F.grid_sample(planes_yz[i], vgrid[..., [1, 2]], padding_mode='border', align_corners=True, mode='bilinear').squeeze().transpose(0, 1)
             feat.append(xy + xz + yz)
-        feat = torch.cat(feat, dim=-1)
+        feat = torch.cat(feat, dim=-1)  # [N,64]
+        '''
+
+        xy = planes_xy(p_nor[..., [0, 1]])
+        xz = planes_xz(p_nor[..., [0, 2]])
+        yz = planes_yz(p_nor[..., [1, 2]])
+        feat = xy + xz + yz  # [N, 32]
 
         return feat
 

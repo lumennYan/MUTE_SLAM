@@ -129,6 +129,10 @@ class Tracker(object):
 
         for p in self.decoders.parameters():
             p.requires_grad_(False)
+        for en in [self.planes_xy, self.planes_xz, self.planes_yz,
+                   self.c_planes_xy, self.c_planes_xz, self.c_planes_yz]:
+            for para in en.parameters():
+                para.requires_grad_(False)
 
     def sdf_losses(self, sdf, z_vals, gt_depth):
         """
@@ -238,17 +242,25 @@ class Tracker(object):
 
             self.decoders.load_state_dict(self.shared_decoders.state_dict())
 
-            for planes, self_planes in zip(
+            for plane, self_plane in zip(
                     [self.shared_planes_xy, self.shared_planes_xz, self.shared_planes_yz],
                     [self.planes_xy, self.planes_xz, self.planes_yz]):
+                '''
                 for i, plane in enumerate(planes):
                     self_planes[i] = plane.detach()
+                '''
+                self_plane = copy.deepcopy(plane)
+                self_plane.parameters().requires_grad_(False)
 
-            for c_planes, self_c_planes in zip(
+            for c_plane, self_c_plane in zip(
                     [self.shared_c_planes_xy, self.shared_c_planes_xz, self.shared_c_planes_yz],
                     [self.c_planes_xy, self.c_planes_xz, self.c_planes_yz]):
+                '''
                 for i, c_plane in enumerate(c_planes):
                     self_c_planes[i] = c_plane.detach()
+                '''
+                self_c_plane = copy.deepcopy(c_plane)
+                self_c_plane.parameters().requires_grad_(False)
 
             self.prev_mapping_idx = self.mapping_idx[0].clone()
 

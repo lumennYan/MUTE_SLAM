@@ -271,18 +271,25 @@ class Mapper(object):
         decoders_para_list += list(self.decoders.parameters())
 
         planes_para = []
+        c_planes_para = []
+        '''
         for planes in [self.planes_xy, self.planes_xz, self.planes_yz]:
             for i, plane in enumerate(planes):
-                plane = nn.Parameter(plane)
+                #plane = nn.Parameter(plane)
                 planes_para.append(plane)
                 planes[i] = plane
 
-        c_planes_para = []
         for c_planes in [self.c_planes_xy, self.c_planes_xz, self.c_planes_yz]:
             for i, c_plane in enumerate(c_planes):
                 c_plane = nn.Parameter(c_plane)
                 c_planes_para.append(c_plane)
                 c_planes[i] = c_plane
+        '''
+        for plane in [self.planes_xy, self.planes_xz, self.planes_yz]:
+            planes_para.append(plane.parameters())
+
+        for c_plane in [self.c_planes_xy, self.c_planes_xz, self.c_planes_yz]:
+            c_planes_para.append(c_plane.parameters())
 
         gt_depths = []
         gt_colors = []
@@ -350,7 +357,7 @@ class Mapper(object):
             batch_gt_depth = batch_gt_depth[inside_mask]
             batch_gt_color = batch_gt_color[inside_mask]
 
-            depth, color, sdf, z_vals = self.renderer.render_batch_ray(all_planes, self.decoders,batch_rays_d,
+            depth, color, sdf, z_vals = self.renderer.render_batch_ray(all_planes, self.decoders, batch_rays_d,
                                                                        batch_rays_o, device, self.truncation,
                                                                        gt_depth=batch_gt_depth)
             depth_mask = (batch_gt_depth > 0)
