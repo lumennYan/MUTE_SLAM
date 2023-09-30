@@ -54,7 +54,7 @@ from src.utils.datasets import get_dataset
 from src.utils.Logger import Logger
 from src.utils.Mesher import Mesher
 from src.utils.Renderer import Renderer
-from encoding import get_encoder
+from .encoding import get_encoder
 
 torch.multiprocessing.set_sharing_strategy('file_system')
 
@@ -123,16 +123,13 @@ class ESLAM():
 
         ## Moving feature planes and decoders to the processing device
         for shared_planes in [self.shared_planes_xy, self.shared_planes_xz, self.shared_planes_yz]:
-            for i, plane in enumerate(shared_planes):
-                plane = plane.to(self.device)
-                plane.share_memory_()
-                shared_planes[i] = plane
+            shared_planes = shared_planes.to(self.device)
+            shared_planes.share_memory()
+
 
         for shared_c_planes in [self.shared_c_planes_xy, self.shared_c_planes_xz, self.shared_c_planes_yz]:
-            for i, plane in enumerate(shared_c_planes):
-                plane = plane.to(self.device)
-                plane.share_memory_()
-                shared_c_planes[i] = plane
+            shared_c_planes = shared_c_planes.to(self.device)
+            shared_c_planes.share_memory()
 
         self.shared_decoders = self.shared_decoders.to(self.device)
         self.shared_decoders.share_memory()

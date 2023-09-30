@@ -286,10 +286,10 @@ class Mapper(object):
                 c_planes[i] = c_plane
         '''
         for plane in [self.planes_xy, self.planes_xz, self.planes_yz]:
-            planes_para.append(plane.parameters())
+            planes_para.append(*plane.parameters())
 
         for c_plane in [self.c_planes_xy, self.c_planes_xz, self.c_planes_yz]:
-            c_planes_para.append(c_plane.parameters())
+            c_planes_para.append(*c_plane.parameters())
 
         gt_depths = []
         gt_colors = []

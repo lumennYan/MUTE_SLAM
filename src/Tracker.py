@@ -242,27 +242,36 @@ class Tracker(object):
 
             self.decoders.load_state_dict(self.shared_decoders.state_dict())
 
-            for plane, self_plane in zip(
+            '''
+            self.planes_xy = copy.deepcopy(self.shared_planes_xy)
+            self.planes_xy.parameters().requires_grad = False
+            self.planes_xz = copy.deepcopy(self.shared_planes_xz)
+            self.planes_xz.parameters().requires_grad = False
+            self.planes_yz = copy.deepcopy(self.shared_planes_yz)
+            self.planes_yz.parameters().requires_grad = False
+
+            self.c_planes_xy = copy.deepcopy(self.shared_c_planes_xy)
+            self.c_planes_xy.parameters().requires_grad = False
+            self.c_planes_xz = copy.deepcopy(self.shared_c_planes_xz)
+            self.c_planes_xz.parameters().requires_grad = False
+            self.c_planes_yz = copy.deepcopy(self.shared_c_planes_yz)
+            self.c_planes_yz.parameters().requires_grad = False
+
+            '''
+            with torch.no_grad():
+                for plane, self_plane in zip(
                     [self.shared_planes_xy, self.shared_planes_xz, self.shared_planes_yz],
                     [self.planes_xy, self.planes_xz, self.planes_yz]):
-                '''
-                for i, plane in enumerate(planes):
-                    self_planes[i] = plane.detach()
-                '''
-                self_plane = copy.deepcopy(plane)
-                self_plane.parameters().requires_grad_(False)
+                    self_plane = copy.deepcopy(plane)
+                    #self_plane.parameters().requires_grad = False
 
-            for c_plane, self_c_plane in zip(
+                for c_plane, self_c_plane in zip(
                     [self.shared_c_planes_xy, self.shared_c_planes_xz, self.shared_c_planes_yz],
                     [self.c_planes_xy, self.c_planes_xz, self.c_planes_yz]):
-                '''
-                for i, c_plane in enumerate(c_planes):
-                    self_c_planes[i] = c_plane.detach()
-                '''
-                self_c_plane = copy.deepcopy(c_plane)
-                self_c_plane.parameters().requires_grad_(False)
+                    self_c_plane = copy.deepcopy(c_plane)
+                    #self_c_plane.parameters().requires_grad = False
 
-            self.prev_mapping_idx = self.mapping_idx[0].clone()
+                self.prev_mapping_idx = self.mapping_idx[0].clone()
 
     def run(self):
         """

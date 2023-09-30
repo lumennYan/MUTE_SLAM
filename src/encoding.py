@@ -53,7 +53,7 @@ def get_encoder(encoding='hashgrid', input_dim=3,
         return lambda x, **kwargs: x, input_dim
 
     elif encoding == 'hashgrid':
-        from gridencoder import GridEncoder
+        from .gridencoder import GridEncoder
         encoder = GridEncoder(input_dim=input_dim, num_levels=num_levels, level_dim=level_dim, base_resolution=base_resolution, log2_hashmap_size=log2_hashmap_size, desired_resolution=desired_resolution, gridtype='hash', align_corners=align_corners)
 
     else:
