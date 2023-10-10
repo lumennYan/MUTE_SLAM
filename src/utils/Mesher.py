@@ -234,7 +234,7 @@ class Mesher(object):
                 z.append(self.eval_points(pnts.to(device), all_planes, decoders).cpu().numpy()[:, -1])
             z = np.concatenate(z, axis=0)
             z[~mask] = -1
-
+            print('reach getmesh')
             try:
                 if version.parse(
                         skimage.__version__) > version.parse('0.15.0'):
@@ -247,6 +247,7 @@ class Mesher(object):
                         spacing=(grid['xyz'][0][2] - grid['xyz'][0][1],
                                  grid['xyz'][1][2] - grid['xyz'][1][1],
                                  grid['xyz'][2][2] - grid['xyz'][2][1]))
+                    print('got mesh')
                 else:
                     # for lower version
                     verts, faces, normals, values = skimage.measure.marching_cubes_lewiner(

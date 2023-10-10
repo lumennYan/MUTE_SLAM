@@ -58,6 +58,7 @@ from .encoding import get_encoder
 
 torch.multiprocessing.set_sharing_strategy('file_system')
 
+
 class ESLAM():
     """
     ESLAM main class.
@@ -126,10 +127,11 @@ class ESLAM():
             shared_planes = shared_planes.to(self.device)
             shared_planes.share_memory()
 
-
+        '''
         for shared_c_planes in [self.shared_c_planes_xy, self.shared_c_planes_xz, self.shared_c_planes_yz]:
             shared_c_planes = shared_c_planes.to(self.device)
             shared_c_planes.share_memory()
+        '''
 
         self.shared_decoders = self.shared_decoders.to(self.device)
         self.shared_decoders.share_memory()
@@ -183,10 +185,13 @@ class ESLAM():
 
         # scale the bound if there is a global scaling factor
         self.bound = torch.from_numpy(np.array(cfg['mapping']['bound'])*self.scale).float()
-        bound_dividable = cfg['planes_res']['bound_dividable']
+
+        #bound_dividable = cfg['planes_res']['bound_dividable']
+        bound_dividable = 0.02
         # enlarge the bound a bit to allow it dividable by bound_dividable
         self.bound[:, 1] = (((self.bound[:, 1]-self.bound[:, 0]) /
                             bound_dividable).int()+1)*bound_dividable+self.bound[:, 0]
+
         self.shared_decoders.bound = self.bound
 
     def init_planes(self, cfg):
@@ -196,6 +201,7 @@ class ESLAM():
         Args:
             cfg (dict): parsed config dict.
         """
+        '''
         self.coarse_planes_res = cfg['planes_res']['coarse']
         self.fine_planes_res = cfg['planes_res']['fine']
 
@@ -203,7 +209,7 @@ class ESLAM():
         self.fine_c_planes_res = cfg['c_planes_res']['fine']
 
         c_dim = cfg['model']['c_dim']
-
+        '''
 
 
 
@@ -214,13 +220,14 @@ class ESLAM():
         #c_planes_res = [self.coarse_c_planes_res, self.fine_c_planes_res]
 
         #planes_dim = c_dim
+        desired_res = 512
 
-        planes_xy, self.planes_dim = get_encoder('hashgrid', input_dim=2, desired_resolution=512)
-        planes_xz, _ = get_encoder('hashgrid', input_dim=2, desired_resolution=512)
-        planes_yz, _ = get_encoder('hashgrid', input_dim=2, desired_resolution=512)
-        c_planes_xy, _ = get_encoder('hashgrid', input_dim=2, desired_resolution=512)
-        c_planes_xz, _ = get_encoder('hashgrid', input_dim=2, desired_resolution=512)
-        c_planes_yz, _ = get_encoder('hashgrid', input_dim=2, desired_resolution=512)
+        planes_xy, self.planes_dim = get_encoder('hashgrid', input_dim=2, desired_resolution=desired_res)
+        planes_xz, _ = get_encoder('hashgrid', input_dim=2, desired_resolution=desired_res)
+        planes_yz, _ = get_encoder('hashgrid', input_dim=2, desired_resolution=desired_res)
+        #c_planes_xy, _ = get_encoder('hashgrid', input_dim=2, desired_resolution=desired_res)
+        #c_planes_xz, _ = get_encoder('hashgrid', input_dim=2, desired_resolution=desired_res)
+        #c_planes_yz, _ = get_encoder('hashgrid', input_dim=2, desired_resolution=desired_res)
 
         '''
         for grid_res in planes_res:
@@ -246,9 +253,9 @@ class ESLAM():
         self.shared_planes_xz = planes_xz
         self.shared_planes_yz = planes_yz
 
-        self.shared_c_planes_xy = c_planes_xy
-        self.shared_c_planes_xz = c_planes_xz
-        self.shared_c_planes_yz = c_planes_yz
+        #self.shared_c_planes_xy = c_planes_xy
+        #self.shared_c_planes_xz = c_planes_xz
+        #self.shared_c_planes_yz = c_planes_yz
 
     def tracking(self, rank):
         """
@@ -291,7 +298,6 @@ class ESLAM():
             processes.append(p)
         for p in processes:
             p.join()
-
 # This part is required by torch.multiprocessing
 if __name__ == '__main__':
     pass

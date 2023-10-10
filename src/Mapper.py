@@ -83,9 +83,9 @@ class Mapper(object):
         self.planes_xz = eslam.shared_planes_xz
         self.planes_yz = eslam.shared_planes_yz
 
-        self.c_planes_xy = eslam.shared_c_planes_xy
-        self.c_planes_xz = eslam.shared_c_planes_xz
-        self.c_planes_yz = eslam.shared_c_planes_yz
+        #self.c_planes_xy = eslam.shared_c_planes_xy
+        #self.c_planes_xz = eslam.shared_c_planes_xz
+        #self.c_planes_yz = eslam.shared_c_planes_yz
 
         self.estimate_c2w_list = eslam.estimate_c2w_list
         self.mapping_first_frame = eslam.mapping_first_frame
@@ -141,7 +141,7 @@ class Mapper(object):
         """
 
         front_mask = torch.where(z_vals < (gt_depth[:, None] - self.truncation),
-                                 torch.ones_like(z_vals), torch.zeros_like(z_vals)).bool()
+                                torch.ones_like(z_vals), torch.zeros_like(z_vals)).bool()
 
         back_mask = torch.where(z_vals > (gt_depth[:, None] + self.truncation),
                                 torch.ones_like(z_vals), torch.zeros_like(z_vals)).bool()
@@ -246,7 +246,8 @@ class Mapper(object):
         Returns:
             cur_c2w: return the updated cur_c2w, return the same input cur_c2w if no joint_opt
         """
-        all_planes = (self.planes_xy, self.planes_xz, self.planes_yz, self.c_planes_xy, self.c_planes_xz, self.c_planes_yz)
+        #all_planes = (self.planes_xy, self.planes_xz, self.planes_yz, self.c_planes_xy, self.c_planes_xz, self.c_planes_yz)
+        all_planes = (self.planes_xy, self.planes_xz, self.planes_yz)
         H, W, fx, fy, cx, cy = self.H, self.W, self.fx, self.fy, self.cx, self.cy
         cfg = self.cfg
         device = self.device
@@ -271,7 +272,7 @@ class Mapper(object):
         decoders_para_list += list(self.decoders.parameters())
 
         planes_para = []
-        c_planes_para = []
+        #c_planes_para = []
         '''
         for planes in [self.planes_xy, self.planes_xz, self.planes_yz]:
             for i, plane in enumerate(planes):
@@ -288,8 +289,8 @@ class Mapper(object):
         for plane in [self.planes_xy, self.planes_xz, self.planes_yz]:
             planes_para.append(*plane.parameters())
 
-        for c_plane in [self.c_planes_xy, self.c_planes_xz, self.c_planes_yz]:
-            c_planes_para.append(*c_plane.parameters())
+        #for c_plane in [self.c_planes_xy, self.c_planes_xz, self.c_planes_yz]:
+            #c_planes_para.append(*c_plane.parameters())
 
         gt_depths = []
         gt_colors = []
@@ -316,20 +317,21 @@ class Mapper(object):
 
             optimizer = torch.optim.Adam([{'params': decoders_para_list, 'lr': 0},
                                           {'params': planes_para, 'lr': 0},
-                                          {'params': c_planes_para, 'lr': 0},
+                                          #{'params': c_planes_para, 'lr': 0},
                                           {'params': [cam_poses], 'lr': 0}])
 
         else:
             optimizer = torch.optim.Adam([{'params': decoders_para_list, 'lr': 0},
-                                          {'params': planes_para, 'lr': 0},
-                                          {'params': c_planes_para, 'lr': 0}])
+                                          {'params': planes_para, 'lr': 0}])
+                                          #{'params': c_planes_para, 'lr': 0}])
 
         optimizer.param_groups[0]['lr'] = cfg['mapping']['lr']['decoders_lr'] * lr_factor
         optimizer.param_groups[1]['lr'] = cfg['mapping']['lr']['planes_lr'] * lr_factor
-        optimizer.param_groups[2]['lr'] = cfg['mapping']['lr']['c_planes_lr'] * lr_factor
+        #optimizer.param_groups[2]['lr'] = cfg['mapping']['lr']['c_planes_lr'] * lr_factor
 
         if self.joint_opt:
-            optimizer.param_groups[3]['lr'] = self.joint_opt_cam_lr
+            #optimizer.param_groups[3]['lr'] = self.joint_opt_cam_lr
+            optimizer.param_groups[2]['lr'] = self.joint_opt_cam_lr
 
         for joint_iter in range(iters):
             if (not (idx == 0 and self.no_vis_on_first_frame)):
@@ -344,6 +346,7 @@ class Mapper(object):
             batch_rays_o, batch_rays_d, batch_gt_depth, batch_gt_color = get_samples(
                 0, H, 0, W, pixs_per_image, H, W, fx, fy, cx, cy, c2ws_, gt_depths, gt_colors, device)
 
+            '''
             # should pre-filter those out of bounding box depth value
             with torch.no_grad():
                 det_rays_o = batch_rays_o.clone().detach().unsqueeze(-1)
@@ -356,21 +359,29 @@ class Mapper(object):
             batch_rays_o = batch_rays_o[inside_mask]
             batch_gt_depth = batch_gt_depth[inside_mask]
             batch_gt_color = batch_gt_color[inside_mask]
+            '''
+
+            depth_mask = (batch_gt_depth > 0)
+
+            batch_rays_o = batch_rays_o[depth_mask]
+            batch_rays_d = batch_rays_d[depth_mask]
+            batch_gt_depth = batch_gt_depth[depth_mask]
+            batch_gt_color = batch_gt_color[depth_mask]
 
             depth, color, sdf, z_vals = self.renderer.render_batch_ray(all_planes, self.decoders, batch_rays_d,
                                                                        batch_rays_o, device, self.truncation,
                                                                        gt_depth=batch_gt_depth)
-            depth_mask = (batch_gt_depth > 0)
+            # SDF losses
+            #loss = self.sdf_losses(sdf[depth_mask], z_vals[depth_mask], batch_gt_depth[depth_mask])
+            loss = self.sdf_losses(sdf, z_vals, batch_gt_depth)
 
-            ## SDF losses
-            loss = self.sdf_losses(sdf[depth_mask], z_vals[depth_mask], batch_gt_depth[depth_mask])
-
-            ## Color loss
+            # Color loss
             loss = loss + self.w_color * torch.square(batch_gt_color - color).mean()
 
-            ### Depth loss
-            loss = loss + self.w_depth * torch.square(batch_gt_depth[depth_mask] - depth[depth_mask]).mean()
-
+            # Depth loss
+            #loss = loss + self.w_depth * torch.square(batch_gt_depth[depth_mask] - depth[depth_mask]).mean()
+            loss = loss + self.w_depth * torch.square(batch_gt_depth - depth).mean()
+            #print('mapping_loss', loss)
             optimizer.zero_grad()
             loss.backward(retain_graph=False)
             optimizer.step()
@@ -401,7 +412,8 @@ class Mapper(object):
                 None
         """
         cfg = self.cfg
-        all_planes = (self.planes_xy, self.planes_xz, self.planes_yz, self.c_planes_xy, self.c_planes_xz, self.c_planes_yz)
+        #all_planes = (self.planes_xy, self.planes_xz, self.planes_yz, self.c_planes_xy, self.c_planes_xz, self.c_planes_yz)
+        all_planes = (self.planes_xy, self.planes_xz, self.planes_yz)
         idx, gt_color, gt_depth, gt_c2w = self.frame_reader[0]
         data_iterator = iter(self.frame_loader)
 
@@ -476,10 +488,11 @@ class Mapper(object):
                     mesh_out_file = f'{self.output}/mesh/final_mesh_eval_rec.ply'
                 else:
                     mesh_out_file = f'{self.output}/mesh/final_mesh.ply'
-
+                print('here')
                 self.mesher.get_mesh(mesh_out_file, all_planes, self.decoders, self.keyframe_dict, self.device)
+                print('get_mesh')
                 cull_mesh(mesh_out_file, self.cfg, self.args, self.device, estimate_c2w_list=self.estimate_c2w_list)
-
+                print('done')
                 break
 
             if idx == self.n_img-1:

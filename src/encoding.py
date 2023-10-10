@@ -43,10 +43,10 @@ class FreqEncoder(nn.Module):
 
         return out
 '''
-def get_encoder(encoding='hashgrid', input_dim=3,
+def get_encoder(encoding='hashgrid', input_dim=2,
                 multires=6, 
                 degree=4,
-                num_levels=16, level_dim=2, base_resolution=16, log2_hashmap_size=19, desired_resolution=2048, align_corners=False,
+                num_levels=16, level_dim=2, base_resolution=16, log2_hashmap_size=19, desired_resolution=2048, align_corners=True,
                 **kwargs):
 
     if encoding == 'None':

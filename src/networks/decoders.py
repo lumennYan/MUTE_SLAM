@@ -61,6 +61,7 @@ class Decoders(nn.Module):
         self.c_dim = c_dim
         self.truncation = truncation
         self.n_blocks = n_blocks
+        self.bound = torch.empty(3, 2)
 
         ## layers for SDF decoder
         self.linears = nn.ModuleList(
@@ -120,7 +121,8 @@ class Decoders(nn.Module):
         Returns:
             sdf (tensor): raw SDF
         """
-        planes_xy, planes_xz, planes_yz, c_planes_xy, c_planes_xz, c_planes_yz = all_planes
+        #planes_xy, planes_xz, planes_yz, c_planes_xy, c_planes_xz, c_planes_yz = all_planes
+        planes_xy, planes_xz, planes_yz = all_planes
         feat = self.sample_plane_feature(p_nor, planes_xy, planes_xz, planes_yz)
 
         h = feat
@@ -140,8 +142,9 @@ class Decoders(nn.Module):
         Returns:
             rgb (tensor): raw RGB
         """
-        planes_xy, planes_xz, planes_yz, c_planes_xy, c_planes_xz, c_planes_yz = all_planes
-        c_feat = self.sample_plane_feature(p_nor, c_planes_xy, c_planes_xz, c_planes_yz)
+        #planes_xy, planes_xz, planes_yz, c_planes_xy, c_planes_xz, c_planes_yz = all_planes\
+        planes_xy, planes_xz, planes_yz = all_planes
+        c_feat = self.sample_plane_feature(p_nor, planes_xy, planes_xz, planes_yz)
 
         h = c_feat
         for i, l in enumerate(self.c_linears):
