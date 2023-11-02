@@ -55,9 +55,8 @@ class Decoders(nn.Module):
         learnable_beta: whether to learn beta
 
     """
-    def __init__(self, c_dim=32, hidden_size=16, truncation=0.08, n_blocks=2, learnable_beta=True):
+    def __init__(self, c_dim=32, hidden_size=32, truncation=0.08, n_blocks=2, learnable_beta=True):
         super().__init__()
-
         self.c_dim = c_dim
         self.truncation = truncation
         self.n_blocks = n_blocks
@@ -106,10 +105,13 @@ class Decoders(nn.Module):
         '''
 
         xy = planes_xy(p_nor[..., [0, 1]])
+        #xy = planes_xy(p_nor[..., 0])
         xz = planes_xz(p_nor[..., [0, 2]])
+        #xz = planes_xz(p_nor[..., 1])
         yz = planes_yz(p_nor[..., [1, 2]])
+        #yz = planes_yz(p_nor[..., 2])
         feat = xy + xz + yz  # [N, 32]
-
+        #feat = xy
         return feat
 
     def get_raw_sdf(self, p_nor, all_planes):

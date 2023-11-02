@@ -111,6 +111,7 @@ class BaseDataset(Dataset):
         H, W = depth_data.shape
         color_data = cv2.resize(color_data, (W, H))
         color_data = torch.from_numpy(color_data)
+        color_data = color_data.to(torch.float32)
         depth_data = torch.from_numpy(depth_data)*self.scale
 
         if self.crop_size is not None:
@@ -129,7 +130,6 @@ class BaseDataset(Dataset):
             depth_data = depth_data[edge:-edge, edge:-edge]
         pose = self.poses[index]
         pose[:3, 3] *= self.scale
-
         # return index, color_data.to(self.device, non_blocking=True), depth_data.to(self.device, non_blocking=True), pose.to(self.device, non_blocking=True)
         return index, color_data, depth_data, pose
 

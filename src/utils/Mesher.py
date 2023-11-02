@@ -220,21 +220,26 @@ class Mesher(object):
         """
 
         with torch.no_grad():
+            print('reach getmesh')
             grid = self.get_grid_uniform(self.resolution)
+            print('finish get_grid_uniform')
             points = grid['grid_points']
             mesh_bound = self.get_bound_from_frames(keyframe_dict, self.scale)
-
+            print('finish get_bound_from_frames')
             z = []
             mask = []
             for i, pnts in enumerate(torch.split(points, self.points_batch_size, dim=0)):
                 mask.append(mesh_bound.contains(pnts.cpu().numpy()))
+                #mask.append(mesh_bound.contains(pnts.numpy()))
             mask = np.concatenate(mask, axis=0)
 
             for i, pnts in enumerate(torch.split(points, self.points_batch_size, dim=0)):
                 z.append(self.eval_points(pnts.to(device), all_planes, decoders).cpu().numpy()[:, -1])
+                #z.append(self.eval_points(pnts.to(device), all_planes, decoders).numpy()[:, -1])
             z = np.concatenate(z, axis=0)
+
             z[~mask] = -1
-            print('reach getmesh')
+            print('getting mesh')
             try:
                 if version.parse(
                         skimage.__version__) > version.parse('0.15.0'):
@@ -271,6 +276,7 @@ class Mesher(object):
                 z = []
                 for i, pnts in enumerate(torch.split(points, self.points_batch_size, dim=0)):
                     z_color = self.eval_points(pnts.to(device).float(), all_planes, decoders).cpu()[..., :3]
+                    #z_color = self.eval_points(pnts.float(), all_planes, decoders)[..., :3]
                     z.append(z_color)
                 z = torch.cat(z, dim=0)
                 vertex_colors = z.numpy()

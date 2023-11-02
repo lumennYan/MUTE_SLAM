@@ -108,29 +108,25 @@ class Renderer(object):
 
         ### pixels with gt depth:
         gt_depth = gt_depth.reshape(-1, 1)
-        #gt_mask = (gt_depth > 0).squeeze()
-        #gt_nonezero = gt_depth[gt_mask]
-        gt_nonezero = gt_depth
+        gt_mask = (gt_depth > 0).squeeze()
+        gt_nonezero = gt_depth[gt_mask]
 
         ## Sampling points around the gt depth (surface)
         gt_depth_surface = gt_nonezero.expand(-1, n_importance)
-        #in the range of gt_depth +-1.5 truncation, a uniform sampling
+        ## in the range of gt_depth +-1.5 truncation, a uniform sampling
         z_vals_surface = gt_depth_surface - (1.5 * truncation) + (3 * truncation * t_vals_surface)
 
         gt_depth_free = gt_nonezero.expand(-1, n_stratified)
-        #in the range of 1.2*gt_depth, a uniform sampling
+        ## in the range of 1.2*gt_depth, a uniform sampling
         z_vals_free = near + 1.2 * gt_depth_free * t_vals_uni
 
-        z_vals, _ = torch.sort(torch.cat([z_vals_free, z_vals_surface], dim=-1), dim=-1)
+        z_vals_nonzero, _ = torch.sort(torch.cat([z_vals_free, z_vals_surface], dim=-1), dim=-1)
         if self.perturb:
-            z_vals = self.perturbation(z_vals)
-        #z_vals[gt_mask] = z_vals_nonzero
+            z_vals_nonzero = self.perturbation(z_vals_nonzero)
+        z_vals[gt_mask] = z_vals_nonzero
 
-
-        '''
         ### pixels without gt depth (importance sampling):
         if not gt_mask.all():
-            print('no_depth')
             with torch.no_grad():
                 rays_o_uni = rays_o[~gt_mask].detach()
                 rays_d_uni = rays_d[~gt_mask].detach()
@@ -157,7 +153,7 @@ class Renderer(object):
                 z_samples_uni = sample_pdf(z_vals_uni_mid, weights_uni[..., 1:-1], n_importance, det=False, device=device)
                 z_vals_uni, ind = torch.sort(torch.cat([z_vals_uni, z_samples_uni], -1), -1)
                 z_vals[~gt_mask] = z_vals_uni
-        '''
+
 
         pts = rays_o[..., None, :] + rays_d[..., None, :] * \
               z_vals[..., :, None]  # [n_rays, n_stratified+n_importance, 3]

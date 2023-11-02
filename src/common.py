@@ -41,7 +41,105 @@
 
 import numpy as np
 import torch
-from pytorch3d.transforms import matrix_to_quaternion, quaternion_to_matrix
+import torch.nn.functional as F
+#from pytorch3d.transforms import matrix_to_quaternion, quaternion_to_matrix
+
+
+def quaternion_to_matrix(quaternions):
+    """
+    Convert rotations given as quaternions to rotation matrices.
+
+    Args:
+        quaternions: quaternions with real part first,
+            as tensor of shape (..., 4).
+
+    Returns:
+        Rotation matrices as tensor of shape (..., 3, 3).
+    """
+    r, i, j, k = torch.unbind(quaternions, -1)
+    two_s = 2.0 / (quaternions * quaternions).sum(-1)
+
+    o = torch.stack(
+        (
+            1 - two_s * (j * j + k * k),
+            two_s * (i * j - k * r),
+            two_s * (i * k + j * r),
+            two_s * (i * j + k * r),
+            1 - two_s * (i * i + k * k),
+            two_s * (j * k - i * r),
+            two_s * (i * k - j * r),
+            two_s * (j * k + i * r),
+            1 - two_s * (i * i + j * j),
+        ),
+        -1,
+    )
+    return o.reshape(quaternions.shape[:-1] + (3, 3))
+
+
+def _sqrt_positive_part(x: torch.Tensor) -> torch.Tensor:
+    """
+    Returns torch.sqrt(torch.max(0, x))
+    but with a zero subgradient where x is 0.
+    """
+    ret = torch.zeros_like(x)
+    positive_mask = x > 0
+    ret[positive_mask] = torch.sqrt(x[positive_mask])
+    return ret
+
+
+def matrix_to_quaternion(matrix: torch.Tensor) -> torch.Tensor:
+    """
+    Convert rotations given as rotation matrices to quaternions.
+
+    Args:
+        matrix: Rotation matrices as tensor of shape (..., 3, 3).
+
+    Returns:
+        quaternions with real part first, as tensor of shape (..., 4).
+    """
+    if matrix.size(-1) != 3 or matrix.size(-2) != 3:
+        raise ValueError(f"Invalid rotation matrix  shape f{matrix.shape}.")
+
+    batch_dim = matrix.shape[:-2]
+    m00, m01, m02, m10, m11, m12, m20, m21, m22 = torch.unbind(
+        matrix.reshape(*batch_dim, 9), dim=-1
+    )
+
+    q_abs = _sqrt_positive_part(
+        torch.stack(
+            [
+                1.0 + m00 + m11 + m22,
+                1.0 + m00 - m11 - m22,
+                1.0 - m00 + m11 - m22,
+                1.0 - m00 - m11 + m22,
+            ],
+            dim=-1,
+        )
+    )
+
+    # we produce the desired quaternion multiplied by each of r, i, j, k
+    quat_by_rijk = torch.stack(
+        [
+            torch.stack([q_abs[..., 0] ** 2, m21 - m12, m02 - m20, m10 - m01], dim=-1),
+            torch.stack([m21 - m12, q_abs[..., 1] ** 2, m10 + m01, m02 + m20], dim=-1),
+            torch.stack([m02 - m20, m10 + m01, q_abs[..., 2] ** 2, m12 + m21], dim=-1),
+            torch.stack([m10 - m01, m20 + m02, m21 + m12, q_abs[..., 3] ** 2], dim=-1),
+        ],
+        dim=-2,
+    )
+
+    # We floor here at 0.1 but the exact level is not important; if q_abs is small,
+    # the candidate won't be picked.
+    # pyre-ignore [16]: `torch.Tensor` has no attribute `new_tensor`.
+    quat_candidates = quat_by_rijk / (2.0 * q_abs[..., None].max(q_abs.new_tensor(0.1)))
+
+    # if not for numerical problems, quat_candidates[i] should be same (up to a sign),
+    # forall i; we pick the best-conditioned one (with the largest denominator)
+
+    return quat_candidates[
+        F.one_hot(q_abs.argmax(dim=-1), num_classes=4) > 0.5, :  # pyre-ignore[16]
+    ].reshape(*batch_dim, 4)
+
 
 def as_intrinsics_matrix(intrinsics):
     """
@@ -103,6 +201,7 @@ def random_select(l, k):
     """
     return list(np.random.permutation(np.array(range(l)))[:min(l, k)])
 
+
 def get_rays_from_uv(i, j, c2ws, H, W, fx, fy, cx, cy, device):
     """
     Get corresponding rays from input uv.
@@ -116,6 +215,7 @@ def get_rays_from_uv(i, j, c2ws, H, W, fx, fy, cx, cy, device):
     rays_o = c2ws[:, None, :3, -1].expand(rays_d.shape)
 
     return rays_o, rays_d
+
 
 def select_uv(i, j, n, b, depths, colors, device='cuda:0'):
     """
@@ -141,6 +241,7 @@ def select_uv(i, j, n, b, depths, colors, device='cuda:0'):
 
     return i, j, depths, colors
 
+
 def get_sample_uv(H0, H1, W0, W1, n, b, depths, colors, device='cuda:0'):
     """
     Sample n uv coordinates from an image region H0..H1, W0..W1
@@ -157,6 +258,7 @@ def get_sample_uv(H0, H1, W0, W1, n, b, depths, colors, device='cuda:0'):
 
     return i, j, depth, color
 
+
 def get_samples(H0, H1, W0, W1, n, H, W, fx, fy, cx, cy, c2ws, depths, colors, device):
     """
     Get n rays from the image region H0..H1, W0..W1.
@@ -170,6 +272,7 @@ def get_samples(H0, H1, W0, W1, n, H, W, fx, fy, cx, cy, c2ws, depths, colors, d
     rays_o, rays_d = get_rays_from_uv(i, j, c2ws, H, W, fx, fy, cx, cy, device)
 
     return rays_o.reshape(-1, 3), rays_d.reshape(-1, 3), sample_depth.reshape(-1), sample_color.reshape(-1, 3)
+
 
 def matrix_to_cam_pose(batch_matrices, RT=True):
     """
@@ -185,6 +288,7 @@ def matrix_to_cam_pose(batch_matrices, RT=True):
     else:
         return torch.cat([batch_matrices[:, :3, 3], matrix_to_quaternion(batch_matrices[:, :3, :3])], dim=-1)
 
+
 def cam_pose_to_matrix(batch_poses):
     """
     Convert quaternion and translation to transformation matrix.
@@ -198,6 +302,7 @@ def cam_pose_to_matrix(batch_poses):
     c2w[:,:3,3] = batch_poses[:,4:]
 
     return c2w
+
 
 def get_rays(H, W, fx, fy, cx, cy, c2w, device):
     """
@@ -235,3 +340,5 @@ def normalize_3d_coordinate(p, bound):
     p[:, 1] = ((p[:, 1]-bound[1, 0])/(bound[1, 1]-bound[1, 0]))*2-1.0
     p[:, 2] = ((p[:, 2]-bound[2, 0])/(bound[2, 1]-bound[2, 0]))*2-1.0
     return p
+
+

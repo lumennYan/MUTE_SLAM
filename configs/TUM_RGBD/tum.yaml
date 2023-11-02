@@ -8,12 +8,12 @@ tracking:
   lr_T: 0.01
   lr_R: 0.002
   pixels: 5000
-  iters: 200
+  iters: 10
 mapping:
   every_frame: 1
   keyframe_every: 1
   pixels: 5000
-  iters: 60
+  iters: 20
 cam:  #NOTE: intrinsic is different per scene in TUM
   H: 480
   W: 640

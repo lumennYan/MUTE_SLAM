@@ -361,26 +361,21 @@ class Mapper(object):
             batch_gt_color = batch_gt_color[inside_mask]
             '''
 
-            depth_mask = (batch_gt_depth > 0)
 
-            batch_rays_o = batch_rays_o[depth_mask]
-            batch_rays_d = batch_rays_d[depth_mask]
-            batch_gt_depth = batch_gt_depth[depth_mask]
-            batch_gt_color = batch_gt_color[depth_mask]
+            depth_mask = (batch_gt_depth > 0)
 
             depth, color, sdf, z_vals = self.renderer.render_batch_ray(all_planes, self.decoders, batch_rays_d,
                                                                        batch_rays_o, device, self.truncation,
                                                                        gt_depth=batch_gt_depth)
             # SDF losses
-            #loss = self.sdf_losses(sdf[depth_mask], z_vals[depth_mask], batch_gt_depth[depth_mask])
-            loss = self.sdf_losses(sdf, z_vals, batch_gt_depth)
+            loss = self.sdf_losses(sdf[depth_mask], z_vals[depth_mask], batch_gt_depth[depth_mask])
 
             # Color loss
             loss = loss + self.w_color * torch.square(batch_gt_color - color).mean()
 
             # Depth loss
-            #loss = loss + self.w_depth * torch.square(batch_gt_depth[depth_mask] - depth[depth_mask]).mean()
-            loss = loss + self.w_depth * torch.square(batch_gt_depth - depth).mean()
+            loss = loss + self.w_depth * torch.square(batch_gt_depth[depth_mask] - depth[depth_mask]).mean()
+
             #print('mapping_loss', loss)
             optimizer.zero_grad()
             loss.backward(retain_graph=False)

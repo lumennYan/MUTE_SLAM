@@ -8,10 +8,10 @@ tracking:
   lr_T: 0.002
   lr_R: 0.001
   pixels: 2000
-  iters: 8
+  iters: 4
 mapping:
   pixels: 4000
-  iters: 15
+  iters: 8
 cam:
   H: 680
   W: 1200

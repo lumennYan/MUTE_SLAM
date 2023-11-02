@@ -215,14 +215,6 @@ class Tracker(object):
         batch_gt_color = batch_gt_color[inside_mask]
         '''
 
-        depth_mask = (batch_gt_depth > 0)
-
-        batch_rays_o = batch_rays_o[depth_mask]
-        batch_rays_d = batch_rays_d[depth_mask]
-        batch_gt_depth = batch_gt_depth[depth_mask]
-        batch_gt_color = batch_gt_color[depth_mask]
-
-
         #print('rays after', batch_rays_d)
         depth, color, sdf, z_vals = self.renderer.render_batch_ray(all_planes, self.decoders, batch_rays_d, batch_rays_o,
                                                                    self.device, self.truncation, gt_depth=batch_gt_depth)

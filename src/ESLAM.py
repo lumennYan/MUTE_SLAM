@@ -46,6 +46,8 @@ import numpy as np
 import torch
 import torch.multiprocessing
 import torch.multiprocessing as mp
+#import tinycudann as tcnn
+
 
 from src import config
 from src.Mapper import Mapper
@@ -143,6 +145,11 @@ class ESLAM():
         self.tracker = Tracker(cfg, args, self)
         self.print_output_desc()
 
+    def get_gpu_memory_usage(self):
+        allocated = torch.cuda.memory_allocated(self.device)
+        reserved = torch.cuda.memory_reserved(self.device)
+        return allocated, reserved
+
     def print_output_desc(self):
         print(f"INFO: The output folder is {self.output}")
         print(
@@ -211,51 +218,30 @@ class ESLAM():
         c_dim = cfg['model']['c_dim']
         '''
 
-
-
+        self.encoding_type = cfg['encoding']['type']
+        self.encoding_levels = cfg['encoding']['n_levels']
+        self.desired_resolution = cfg['encoding']['desired_resolution']
+        self.base_resolution = cfg['encoding']['base_resolution']
+        self.log2_hashmap_size = cfg['encoding']['log2_hashmap_size']
+        self.per_level_feature_dim = cfg['encoding']['feature_dim']
+        self.per_level_scale = np.exp2(np.log2(self.desired_resolution / self.base_resolution) / (self.encoding_levels-1))
+        self.encoding_dict = {"n_levels": self.encoding_levels, "otype": self.encoding_type, "n_features_per_level": self.per_level_feature_dim,
+                              "log2_hashmap_size": self.log2_hashmap_size, "base_resolution": self.base_resolution, "per_level_scale": self.per_level_scale}
         ####### Initializing Planes ############
-        #planes_xy, planes_xz, planes_yz = [], [], []
-        #c_planes_xy, c_planes_xz, c_planes_yz = [], [], []
-        #planes_res = [self.coarse_planes_res, self.fine_planes_res]
-        #c_planes_res = [self.coarse_c_planes_res, self.fine_c_planes_res]
+        #planes_xy = tcnn.Encoding(n_input_dims=2, encoding_config=self.encoding_dict, dtype=torch.float32)
+        #planes_xz = tcnn.Encoding(n_input_dims=2, encoding_config=self.encoding_dict, dtype=torch.float32)
+        #planes_yz = tcnn.Encoding(n_input_dims=2, encoding_config=self.encoding_dict, dtype=torch.float32)
 
-        #planes_dim = c_dim
+
         desired_res = 512
-
         planes_xy, self.planes_dim = get_encoder('hashgrid', input_dim=2, desired_resolution=desired_res)
         planes_xz, _ = get_encoder('hashgrid', input_dim=2, desired_resolution=desired_res)
         planes_yz, _ = get_encoder('hashgrid', input_dim=2, desired_resolution=desired_res)
-        #c_planes_xy, _ = get_encoder('hashgrid', input_dim=2, desired_resolution=desired_res)
-        #c_planes_xz, _ = get_encoder('hashgrid', input_dim=2, desired_resolution=desired_res)
-        #c_planes_yz, _ = get_encoder('hashgrid', input_dim=2, desired_resolution=desired_res)
-
-        '''
-        for grid_res in planes_res:
-            grid_shape = list(map(int, (xyz_len / grid_res).tolist()))
-            grid_shape[0], grid_shape[2] = grid_shape[2], grid_shape[0]
-            planes_xy.append(torch.empty([1, planes_dim, *grid_shape[1:]]).normal_(mean=0, std=0.01))
-            planes_xz.append(torch.empty([1, planes_dim, grid_shape[0], grid_shape[2]]).normal_(mean=0, std=0.01))
-            planes_yz.append(torch.empty([1, planes_dim, *grid_shape[:2]]).normal_(mean=0, std=0.01))
-
-        for grid_res in c_planes_res:
-            grid_shape = list(map(int, (xyz_len / grid_res).tolist()))
-            grid_shape[0], grid_shape[2] = grid_shape[2], grid_shape[0]
-            c_planes_xy.append(torch.empty([1, planes_dim, *grid_shape[1:]]).normal_(mean=0, std=0.01))
-            c_planes_xz.append(torch.empty([1, planes_dim, grid_shape[0], grid_shape[2]]).normal_(mean=0, std=0.01))
-            c_planes_yz.append(torch.empty([1, planes_dim, *grid_shape[:2]]).normal_(mean=0, std=0.01))
-        '''
-
-
-
 
 
         self.shared_planes_xy = planes_xy
         self.shared_planes_xz = planes_xz
         self.shared_planes_yz = planes_yz
-
-        #self.shared_c_planes_xy = c_planes_xy
-        #self.shared_c_planes_xz = c_planes_xz
-        #self.shared_c_planes_yz = c_planes_yz
 
     def tracking(self, rank):
         """
@@ -298,6 +284,9 @@ class ESLAM():
             processes.append(p)
         for p in processes:
             p.join()
+        allocated, reserved = self.get_gpu_memory_usage()
+        print('memory_allocated', allocated)
+        print('memory_reserved', reserved)
 # This part is required by torch.multiprocessing
 if __name__ == '__main__':
     pass
