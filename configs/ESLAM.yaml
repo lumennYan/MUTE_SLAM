@@ -3,16 +3,18 @@ verbose: False
 device: "cuda:0"
 #keyframe_device: "cuda:0" ## Change this to "cpu" to reduce GPU memory usage
 keyframe_device: "cpu"
+seed: 42
 encoding:
+  tcnn: False
   type: HashGrid
-  n_levels: 16
+  n_levels: 8
   desired_resolution: 512
   base_resolution: 16
-  log2_hashmap_size: 19
-  feature_dim: 2
+  log2_hashmap_size: 17
+  feature_dim: 4
 meshing:
   level_set: 0
-  resolution: 0.01 #cm # Increase this number to speed up meshing algorithm
+  resolution: 0.001 #cm # Increase this number to speed up meshing algorithm
   eval_rec: False
   mesh_bound_scale: 1.02
 tracking:
@@ -26,7 +28,7 @@ tracking:
   lr_T: 0.001
   lr_R: 0.001
   pixels: 2000
-  iters: 50
+  iters: 4
   w_sdf_fs: 10
   w_sdf_center: 200
   w_sdf_tail: 50
@@ -50,7 +52,7 @@ mapping:
   lr_factor: 1
   pixels: 4000
   iters_first: 500
-  iters: 500
+  iters: 8
   w_sdf_fs: 5
   w_sdf_center: 200
   w_sdf_tail: 10
@@ -75,5 +77,4 @@ rendering:
   perturb: True
   learnable_beta: True
 model:
-  c_dim: 32
   truncation: 0.06

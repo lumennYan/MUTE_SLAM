@@ -42,7 +42,7 @@
 import numpy as np
 import torch
 import torch.nn.functional as F
-#from pytorch3d.transforms import matrix_to_quaternion, quaternion_to_matrix
+
 
 
 def quaternion_to_matrix(quaternions):
@@ -342,3 +342,18 @@ def normalize_3d_coordinate(p, bound):
     return p
 
 
+def normalize_3d_coordinate_to_unit(p, bound):
+    """
+    Normalize 3d coordinate to [-1, 1] range.
+    Args:
+        p: (N, 3) 3d coordinate
+        bound: (3, 2) min and max of each dimension
+    Returns:
+        (N, 3) normalized 3d coordinate
+
+    """
+    p = p.reshape(-1, 3)
+    p[:, 0] = ((p[:, 0]-bound[0, 0])/(bound[0, 1]-bound[0, 0]))
+    p[:, 1] = ((p[:, 1]-bound[1, 0])/(bound[1, 1]-bound[1, 0]))
+    p[:, 2] = ((p[:, 2]-bound[2, 0])/(bound[2, 1]-bound[2, 0]))
+    return p

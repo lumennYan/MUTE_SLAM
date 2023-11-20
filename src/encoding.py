@@ -46,13 +46,13 @@ class FreqEncoder(nn.Module):
 def get_encoder(encoding='hashgrid', input_dim=2,
                 multires=6, 
                 degree=4,
-                num_levels=16, level_dim=2, base_resolution=16, log2_hashmap_size=20, desired_resolution=2048, align_corners=True,
+                num_levels=16, level_dim=2, base_resolution=16, log2_hashmap_size=18, desired_resolution=2048, align_corners=True,
                 **kwargs):
 
     if encoding == 'None':
         return lambda x, **kwargs: x, input_dim
 
-    elif encoding == 'hashgrid':
+    elif encoding == 'HashGrid':
         from .gridencoder import GridEncoder
         encoder = GridEncoder(input_dim=input_dim, num_levels=num_levels, level_dim=level_dim, base_resolution=base_resolution, log2_hashmap_size=log2_hashmap_size, desired_resolution=desired_resolution, gridtype='hash', align_corners=align_corners)
 

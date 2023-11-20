@@ -42,7 +42,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from src.common import normalize_3d_coordinate
+from src.common import normalize_3d_coordinate, normalize_3d_coordinate_to_unit
 
 class Decoders(nn.Module):
     """
@@ -55,21 +55,22 @@ class Decoders(nn.Module):
         learnable_beta: whether to learn beta
 
     """
-    def __init__(self, c_dim=32, hidden_size=32, truncation=0.08, n_blocks=2, learnable_beta=True):
+    def __init__(self, in_dim=32, hidden_size=32, truncation=0.08, n_blocks=2, learnable_beta=True, use_tcnn=False):
         super().__init__()
-        self.c_dim = c_dim
+        self.in_dim = in_dim
         self.truncation = truncation
         self.n_blocks = n_blocks
         self.bound = torch.empty(3, 2)
+        self.use_tcnn = use_tcnn
 
         ## layers for SDF decoder
         self.linears = nn.ModuleList(
-            [nn.Linear(c_dim, hidden_size)] +
+            [nn.Linear(in_dim, hidden_size)] +
             [nn.Linear(hidden_size, hidden_size) for i in range(n_blocks - 1)])
 
         ## layers for RGB decoder
         self.c_linears = nn.ModuleList(
-            [nn.Linear(c_dim, hidden_size)] +
+            [nn.Linear(in_dim, hidden_size)] +
             [nn.Linear(hidden_size, hidden_size) for i in range(n_blocks - 1)])
 
         self.output_linear = nn.Linear(hidden_size, 1)
@@ -167,7 +168,10 @@ class Decoders(nn.Module):
         """
         p_shape = p.shape
 
-        p_nor = normalize_3d_coordinate(p.clone(), self.bound)
+        if self.use_tcnn:
+            p_nor = normalize_3d_coordinate_to_unit(p.clone(), self.bound)
+        else:
+            p_nor = normalize_3d_coordinate(p.clone(), self.bound)
 
         sdf = self.get_raw_sdf(p_nor, all_planes)
         rgb = self.get_raw_rgb(p_nor, all_planes)

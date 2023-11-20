@@ -197,7 +197,8 @@ def draw_trajectory(queue, output, init_pose, cam_scale,
 
     vis.register_animation_callback(animation_callback)
     vis.create_window(window_name=output, height=1080, width=1920)
-    vis.get_render_option().point_size = 4
+    render_option = vis.get_render_option()
+    render_option.point_size = 4
     vis.get_render_option().mesh_show_back_face = False
 
     ctr = vis.get_view_control()

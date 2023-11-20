@@ -46,7 +46,7 @@ import numpy as np
 import torch
 import torch.multiprocessing
 import torch.multiprocessing as mp
-#import tinycudann as tcnn
+
 
 
 from src import config
@@ -92,10 +92,17 @@ class ESLAM():
             'W'], cfg['cam']['fx'], cfg['cam']['fy'], cfg['cam']['cx'], cfg['cam']['cy']
         self.update_cam()
 
+        self.seed = cfg['seed']
+        np.random.seed(self.seed)
+        torch.manual_seed(self.seed)
+        torch.cuda.manual_seed(self.seed)
+
         model = config.get_model(cfg)
         self.shared_decoders = model
 
         self.scale = cfg['scale']
+
+        self.use_tcnn = cfg['encoding']['tcnn']
 
         self.load_bound(cfg)
         self.init_planes(cfg)
@@ -129,11 +136,6 @@ class ESLAM():
             shared_planes = shared_planes.to(self.device)
             shared_planes.share_memory()
 
-        '''
-        for shared_c_planes in [self.shared_c_planes_xy, self.shared_c_planes_xz, self.shared_c_planes_yz]:
-            shared_c_planes = shared_c_planes.to(self.device)
-            shared_c_planes.share_memory()
-        '''
 
         self.shared_decoders = self.shared_decoders.to(self.device)
         self.shared_decoders.share_memory()
@@ -193,11 +195,11 @@ class ESLAM():
         # scale the bound if there is a global scaling factor
         self.bound = torch.from_numpy(np.array(cfg['mapping']['bound'])*self.scale).float()
 
-        #bound_dividable = cfg['planes_res']['bound_dividable']
-        bound_dividable = 0.02
+
+        #bound_dividable = 0.02
         # enlarge the bound a bit to allow it dividable by bound_dividable
-        self.bound[:, 1] = (((self.bound[:, 1]-self.bound[:, 0]) /
-                            bound_dividable).int()+1)*bound_dividable+self.bound[:, 0]
+        #self.bound[:, 1] = (((self.bound[:, 1]-self.bound[:, 0]) /
+                            #bound_dividable).int()+1)*bound_dividable+self.bound[:, 0]
 
         self.shared_decoders.bound = self.bound
 
@@ -218,25 +220,46 @@ class ESLAM():
         c_dim = cfg['model']['c_dim']
         '''
 
+        ####### Initializing Planes ############
+
         self.encoding_type = cfg['encoding']['type']
         self.encoding_levels = cfg['encoding']['n_levels']
         self.desired_resolution = cfg['encoding']['desired_resolution']
         self.base_resolution = cfg['encoding']['base_resolution']
         self.log2_hashmap_size = cfg['encoding']['log2_hashmap_size']
         self.per_level_feature_dim = cfg['encoding']['feature_dim']
-        self.per_level_scale = np.exp2(np.log2(self.desired_resolution / self.base_resolution) / (self.encoding_levels-1))
-        self.encoding_dict = {"n_levels": self.encoding_levels, "otype": self.encoding_type, "n_features_per_level": self.per_level_feature_dim,
-                              "log2_hashmap_size": self.log2_hashmap_size, "base_resolution": self.base_resolution, "per_level_scale": self.per_level_scale}
-        ####### Initializing Planes ############
-        #planes_xy = tcnn.Encoding(n_input_dims=2, encoding_config=self.encoding_dict, dtype=torch.float32)
-        #planes_xz = tcnn.Encoding(n_input_dims=2, encoding_config=self.encoding_dict, dtype=torch.float32)
-        #planes_yz = tcnn.Encoding(n_input_dims=2, encoding_config=self.encoding_dict, dtype=torch.float32)
 
 
-        desired_res = 512
-        planes_xy, self.planes_dim = get_encoder('hashgrid', input_dim=2, desired_resolution=desired_res)
-        planes_xz, _ = get_encoder('hashgrid', input_dim=2, desired_resolution=desired_res)
-        planes_yz, _ = get_encoder('hashgrid', input_dim=2, desired_resolution=desired_res)
+        if self.use_tcnn:
+            import tinycudann as tcnn
+
+            self.per_level_scale = np.exp2(
+                np.log2(self.desired_resolution / self.base_resolution) / (self.encoding_levels - 1))
+            self.encoding_dict = dict(n_levels=self.encoding_levels, otype=self.encoding_type,
+                                      n_features_per_level=self.per_level_feature_dim,
+                                      log2_hashmap_size=self.log2_hashmap_size, base_resolution=self.base_resolution,
+                                      per_level_scale=self.per_level_scale)
+
+            planes_xy = tcnn.Encoding(n_input_dims=2, encoding_config=self.encoding_dict, dtype=torch.float32)
+            planes_xz = tcnn.Encoding(n_input_dims=2, encoding_config=self.encoding_dict, dtype=torch.float32)
+            planes_yz = tcnn.Encoding(n_input_dims=2, encoding_config=self.encoding_dict, dtype=torch.float32)
+
+        else:
+            planes_xy, _ = get_encoder(encoding=self.encoding_type, input_dim=2,
+                                       num_levels=self.encoding_levels,
+                                       level_dim=self.per_level_feature_dim,
+                                       base_resolution=self.base_resolution, log2_hashmap_size=self.log2_hashmap_size,
+                                       desired_resolution=self.desired_resolution)
+            planes_xz, _ = get_encoder(encoding=self.encoding_type, input_dim=2,
+                                       num_levels=self.encoding_levels,
+                                       level_dim=self.per_level_feature_dim,
+                                       base_resolution=self.base_resolution, log2_hashmap_size=self.log2_hashmap_size,
+                                       desired_resolution=self.desired_resolution)
+            planes_yz, _ = get_encoder(encoding=self.encoding_type, input_dim=2,
+                                       num_levels=self.encoding_levels,
+                                       level_dim=self.per_level_feature_dim,
+                                       base_resolution=self.base_resolution, log2_hashmap_size=self.log2_hashmap_size,
+                                       desired_resolution=self.desired_resolution)
 
 
         self.shared_planes_xy = planes_xy

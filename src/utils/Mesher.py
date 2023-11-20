@@ -230,12 +230,10 @@ class Mesher(object):
             mask = []
             for i, pnts in enumerate(torch.split(points, self.points_batch_size, dim=0)):
                 mask.append(mesh_bound.contains(pnts.cpu().numpy()))
-                #mask.append(mesh_bound.contains(pnts.numpy()))
             mask = np.concatenate(mask, axis=0)
 
             for i, pnts in enumerate(torch.split(points, self.points_batch_size, dim=0)):
                 z.append(self.eval_points(pnts.to(device), all_planes, decoders).cpu().numpy()[:, -1])
-                #z.append(self.eval_points(pnts.to(device), all_planes, decoders).numpy()[:, -1])
             z = np.concatenate(z, axis=0)
 
             z[~mask] = -1

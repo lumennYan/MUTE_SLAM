@@ -123,4 +123,4 @@ if __name__ == '__main__':
 
                 if args.save_rendering:
                     time.sleep(1)
-                    os.system(f"/usr/bin/ffmpeg -f image2 -r 30 -pattern_type glob -i '{output}/tmp_rendering/*.jpg' -y {output}/vis.mp4")
+                    os.system(f"ffmpeg -f image2 -r 30 -pattern_type glob -i '{output}/tmp_rendering/*.jpg' -y {output}/vis.mp4")
