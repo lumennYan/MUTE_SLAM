@@ -47,6 +47,7 @@ import trimesh
 from packaging import version
 from src.utils.datasets import get_dataset
 
+
 class Mesher(object):
     """
     Mesher class.
@@ -68,16 +69,26 @@ class Mesher(object):
         self.level_set = cfg['meshing']['level_set']
         self.mesh_bound_scale = cfg['meshing']['mesh_bound_scale']
 
-        self.bound = eslam.bound
+        self.submap_list = eslam.submap_list
+        self.bound = self.get_bound_from_submaps()
         self.verbose = eslam.verbose
 
-        self.marching_cubes_bound = torch.from_numpy(
-            np.array(cfg['mapping']['marching_cubes_bound']) * self.scale)
+        self.marching_cubes_bound = self.bound * self.scale
 
         self.frame_reader = get_dataset(cfg, args, self.scale, device='cpu')
         self.n_img = len(self.frame_reader)
 
         self.H, self.W, self.fx, self.fy, self.cx, self.cy = eslam.H, eslam.W, eslam.fx, eslam.fy, eslam.cx, eslam.cy
+
+    def get_bound_from_submaps(self):
+        for idx, submap in self.submap_list:
+            if idx == 0:
+                boundaries = submap.boundary
+            else:
+                boundaries = torch.cat([boundaries, submap.boundary], dim=0)
+        boundary, _ = torch.min(boundaries, dim=0)
+        boundary = torch.cat([boundary, torch.max(boundaries, dim=0)[0]], dim=0)
+        return boundary
 
     def get_bound_from_frames(self, keyframe_dict, scale=1):
         """
@@ -146,7 +157,7 @@ class Mesher(object):
         return_mesh = trimesh.Trimesh(vertices=points, faces=faces)
         return return_mesh
 
-    def eval_points(self, p, all_planes, decoders):
+    def eval_points(self, p, submap_list, decoders):
         """
         Evaluates the TSDF and/or color value for the points.
         Args:
@@ -162,12 +173,12 @@ class Mesher(object):
         rets = []
         for pi in p_split:
             # mask for points out of bound
-            mask_x = (pi[:, 0] < bound[0][1]) & (pi[:, 0] > bound[0][0])
-            mask_y = (pi[:, 1] < bound[1][1]) & (pi[:, 1] > bound[1][0])
-            mask_z = (pi[:, 2] < bound[2][1]) & (pi[:, 2] > bound[2][0])
+            mask_x = (pi[:, 0] < bound[1][0]) & (pi[:, 0] > bound[0][0])
+            mask_y = (pi[:, 1] < bound[1][1]) & (pi[:, 1] > bound[0][1])
+            mask_z = (pi[:, 2] < bound[1][2]) & (pi[:, 2] > bound[0][2])
             mask = mask_x & mask_y & mask_z
 
-            ret = decoders(pi, all_planes=all_planes)
+            ret = decoders(pi, submap_list)
 
             ret[~mask, -1] = -1
             rets.append(ret)
@@ -189,14 +200,14 @@ class Mesher(object):
 
         padding = 0.05
 
-        nsteps_x = ((bound[0][1] - bound[0][0] + 2 * padding) / resolution).round().int().item()
-        x = np.linspace(bound[0][0] - padding, bound[0][1] + padding, nsteps_x)
+        nsteps_x = ((bound[1][0] - bound[0][0] + 2 * padding) / resolution).round().int().item()
+        x = np.linspace(bound[0][0] - padding, bound[1][0] + padding, nsteps_x)
         
-        nsteps_y = ((bound[1][1] - bound[1][0] + 2 * padding) / resolution).round().int().item()
-        y = np.linspace(bound[1][0] - padding, bound[1][1] + padding, nsteps_y)
+        nsteps_y = ((bound[1][1] - bound[0][1] + 2 * padding) / resolution).round().int().item()
+        y = np.linspace(bound[0][1] - padding, bound[1][1] + padding, nsteps_y)
         
-        nsteps_z = ((bound[2][1] - bound[2][0] + 2 * padding) / resolution).round().int().item()
-        z = np.linspace(bound[2][0] - padding, bound[2][1] + padding, nsteps_z)
+        nsteps_z = ((bound[1][2] - bound[0][2] + 2 * padding) / resolution).round().int().item()
+        z = np.linspace(bound[0][2] - padding, bound[1][2] + padding, nsteps_z)
 
         x_t, y_t, z_t = torch.from_numpy(x).float(), torch.from_numpy(y).float(), torch.from_numpy(z).float()
         grid_x, grid_y, grid_z = torch.meshgrid(x_t, y_t, z_t, indexing='xy')
@@ -204,7 +215,7 @@ class Mesher(object):
 
         return {"grid_points": grid_points_t, "xyz": [x, y, z]}
 
-    def get_mesh(self, mesh_out_file, all_planes, decoders, keyframe_dict, device='cuda:0', color=True):
+    def get_mesh(self, mesh_out_file, submap_list, decoders, keyframe_dict, device='cuda:0', color=True):
         """
         Get mesh from keyframes and feature planes and save to file.
         Args:
@@ -233,7 +244,7 @@ class Mesher(object):
             mask = np.concatenate(mask, axis=0)
 
             for i, pnts in enumerate(torch.split(points, self.points_batch_size, dim=0)):
-                z.append(self.eval_points(pnts.to(device), all_planes, decoders).cpu().numpy()[:, -1])
+                z.append(self.eval_points(pnts.to(device), submap_list, decoders).cpu().numpy()[:, -1])
             z = np.concatenate(z, axis=0)
 
             z[~mask] = -1
@@ -273,7 +284,7 @@ class Mesher(object):
                 points = torch.from_numpy(vertices)
                 z = []
                 for i, pnts in enumerate(torch.split(points, self.points_batch_size, dim=0)):
-                    z_color = self.eval_points(pnts.to(device).float(), all_planes, decoders).cpu()[..., :3]
+                    z_color = self.eval_points(pnts.to(device).float(), submap_list, decoders).cpu()[..., :3]
                     #z_color = self.eval_points(pnts.float(), all_planes, decoders)[..., :3]
                     z.append(z_color)
                 z = torch.cat(z, dim=0)

@@ -1,44 +1,3 @@
-# This file is a part of ESLAM.
-#
-# ESLAM is a NeRF-based SLAM system. It utilizes Neural Radiance Fields (NeRF)
-# to perform Simultaneous Localization and Mapping (SLAM) in real-time.
-# This software is the implementation of the paper "ESLAM: Efficient Dense SLAM
-# System Based on Hybrid Representation of Signed Distance Fields" by
-# Mohammad Mahdi Johari, Camilla Carta, and Francois Fleuret.
-#
-# Copyright 2023 ams-OSRAM AG
-#
-# Author: Mohammad Mahdi Johari <mohammad.johari@idiap.ch>
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-# This file is a modified version of https://github.com/cvg/nice-slam/blob/master/src/NICE_SLAM.py
-# which is covered by the following copyright and permission notice:
-    #
-    # Copyright 2022 Zihan Zhu, Songyou Peng, Viktor Larsson, Weiwei Xu, Hujun Bao, Zhaopeng Cui, Martin R. Oswald, Marc Pollefeys
-    #
-    # Licensed under the Apache License, Version 2.0 (the "License");
-    # you may not use this file except in compliance with the License.
-    # You may obtain a copy of the License at
-    #
-    #     http://www.apache.org/licenses/LICENSE-2.0
-    #
-    # Unless required by applicable law or agreed to in writing, software
-    # distributed under the License is distributed on an "AS IS" BASIS,
-    # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-    # See the License for the specific language governing permissions and
-    # limitations under the License.
-
 import os
 import time
 
@@ -46,7 +5,6 @@ import numpy as np
 import torch
 import torch.multiprocessing
 import torch.multiprocessing as mp
-
 
 
 from src import config
@@ -92,11 +50,6 @@ class ESLAM():
             'W'], cfg['cam']['fx'], cfg['cam']['fy'], cfg['cam']['cx'], cfg['cam']['cy']
         self.update_cam()
 
-        self.seed = cfg['seed']
-        np.random.seed(self.seed)
-        torch.manual_seed(self.seed)
-        torch.cuda.manual_seed(self.seed)
-
         model = config.get_model(cfg)
         self.shared_decoders = model
 
@@ -104,7 +57,10 @@ class ESLAM():
 
         self.use_tcnn = cfg['encoding']['tcnn']
 
-        self.load_bound(cfg)
+        #self.load_bound(cfg)
+        self.submap_size = cfg['mapping']['submap_size']
+        self.submap_list = []
+
         self.init_planes(cfg)
 
         # need to use spawn
@@ -132,10 +88,11 @@ class ESLAM():
         self.mapping_cnt.share_memory_()
 
         ## Moving feature planes and decoders to the processing device
+        '''
         for shared_planes in [self.shared_planes_xy, self.shared_planes_xz, self.shared_planes_yz]:
             shared_planes = shared_planes.to(self.device)
             shared_planes.share_memory()
-
+        '''
 
         self.shared_decoders = self.shared_decoders.to(self.device)
         self.shared_decoders.share_memory()
@@ -184,6 +141,7 @@ class ESLAM():
             self.cx -= self.cfg['cam']['crop_edge']
             self.cy -= self.cfg['cam']['crop_edge']
 
+    '''
     def load_bound(self, cfg):
         """
         Pass the scene bound parameters to different decoders and self.
@@ -202,7 +160,7 @@ class ESLAM():
                             #bound_dividable).int()+1)*bound_dividable+self.bound[:, 0]
 
         self.shared_decoders.bound = self.bound
-
+    '''
     def init_planes(self, cfg):
         """
         Initialize the feature planes.
@@ -210,26 +168,17 @@ class ESLAM():
         Args:
             cfg (dict): parsed config dict.
         """
-        '''
-        self.coarse_planes_res = cfg['planes_res']['coarse']
-        self.fine_planes_res = cfg['planes_res']['fine']
-
-        self.coarse_c_planes_res = cfg['c_planes_res']['coarse']
-        self.fine_c_planes_res = cfg['c_planes_res']['fine']
-
-        c_dim = cfg['model']['c_dim']
-        '''
 
         ####### Initializing Planes ############
 
         self.encoding_type = cfg['encoding']['type']
         self.encoding_levels = cfg['encoding']['n_levels']
-        self.desired_resolution = cfg['encoding']['desired_resolution']
+        #self.desired_resolution = cfg['encoding']['desired_resolution']
         self.base_resolution = cfg['encoding']['base_resolution']
-        self.log2_hashmap_size = cfg['encoding']['log2_hashmap_size']
+        #self.log2_hashmap_size = cfg['encoding']['log2_hashmap_size']
         self.per_level_feature_dim = cfg['encoding']['feature_dim']
 
-
+        '''
         if self.use_tcnn:
             import tinycudann as tcnn
 
@@ -261,10 +210,10 @@ class ESLAM():
                                        base_resolution=self.base_resolution, log2_hashmap_size=self.log2_hashmap_size,
                                        desired_resolution=self.desired_resolution)
 
-
         self.shared_planes_xy = planes_xy
         self.shared_planes_xz = planes_xz
         self.shared_planes_yz = planes_yz
+        '''
 
     def tracking(self, rank):
         """

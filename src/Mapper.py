@@ -1,44 +1,3 @@
-# This file is a part of ESLAM.
-#
-# ESLAM is a NeRF-based SLAM system. It utilizes Neural Radiance Fields (NeRF)
-# to perform Simultaneous Localization and Mapping (SLAM) in real-time.
-# This software is the implementation of the paper "ESLAM: Efficient Dense SLAM
-# System Based on Hybrid Representation of Signed Distance Fields" by
-# Mohammad Mahdi Johari, Camilla Carta, and Francois Fleuret.
-#
-# Copyright 2023 ams-OSRAM AG
-#
-# Author: Mohammad Mahdi Johari <mohammad.johari@idiap.ch>
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-# This file is a modified version of https://github.com/cvg/nice-slam/blob/master/src/Mapper.py
-# which is covered by the following copyright and permission notice:
-    #
-    # Copyright 2022 Zihan Zhu, Songyou Peng, Viktor Larsson, Weiwei Xu, Hujun Bao, Zhaopeng Cui, Martin R. Oswald, Marc Pollefeys
-    #
-    # Licensed under the Apache License, Version 2.0 (the "License");
-    # you may not use this file except in compliance with the License.
-    # You may obtain a copy of the License at
-    #
-    #     http://www.apache.org/licenses/LICENSE-2.0
-    #
-    # Unless required by applicable law or agreed to in writing, software
-    # distributed under the License is distributed on an "AS IS" BASIS,
-    # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-    # See the License for the specific language governing permissions and
-    # limitations under the License.
-
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -48,7 +7,8 @@ import time
 
 from colorama import Fore, Style
 
-from src.common import (get_samples, random_select, matrix_to_cam_pose, cam_pose_to_matrix)
+from .encoding import Encoder
+from src.common import (get_samples, random_select, matrix_to_cam_pose, cam_pose_to_matrix, get_points, get_sample_points)
 from src.utils.datasets import get_dataset, SeqSampler
 from src.utils.Frame_Visualizer import Frame_Visualizer
 from src.tools.cull_mesh import cull_mesh
@@ -79,13 +39,20 @@ class Mapper(object):
         self.mapping_cnt = eslam.mapping_cnt
         self.decoders = eslam.shared_decoders
 
-        self.planes_xy = eslam.shared_planes_xy
-        self.planes_xz = eslam.shared_planes_xz
-        self.planes_yz = eslam.shared_planes_yz
 
-        #self.c_planes_xy = eslam.shared_c_planes_xy
-        #self.c_planes_xz = eslam.shared_c_planes_xz
-        #self.c_planes_yz = eslam.shared_c_planes_yz
+        self.submap_list = eslam.submap_list
+
+        self.encoding_type = eslam.encoding_type
+        self.encoding_levels = eslam.encoding_levels
+        self.desired_resolution = eslam.desired_resolution
+        self.base_resolution = eslam.base_resolution
+        self.log2_hashmap_size = eslam.log2_hashmap_size
+        self.per_level_feature_dim = eslam.per_level_feature_dim
+        self.use_tcnn = eslam.use_tcnn
+        #self.planes_xy = eslam.shared_planes_xy
+        #self.planes_xz = eslam.shared_planes_xz
+        #self.planes_yz = eslam.shared_planes_yz
+
 
         self.estimate_c2w_list = eslam.estimate_c2w_list
         self.mapping_first_frame = eslam.mapping_first_frame
@@ -246,8 +213,6 @@ class Mapper(object):
         Returns:
             cur_c2w: return the updated cur_c2w, return the same input cur_c2w if no joint_opt
         """
-        #all_planes = (self.planes_xy, self.planes_xz, self.planes_yz, self.c_planes_xy, self.c_planes_xz, self.c_planes_yz)
-        all_planes = (self.planes_xy, self.planes_xz, self.planes_yz)
         H, W, fx, fy, cx, cy = self.H, self.W, self.fx, self.fy, self.cx, self.cy
         cfg = self.cfg
         device = self.device
@@ -272,22 +237,10 @@ class Mapper(object):
         decoders_para_list += list(self.decoders.parameters())
 
         planes_para = []
-        #c_planes_para = []
-        '''
-        for planes in [self.planes_xy, self.planes_xz, self.planes_yz]:
-            for i, plane in enumerate(planes):
-                #plane = nn.Parameter(plane)
-                planes_para.append(plane)
-                planes[i] = plane
 
-        for c_planes in [self.c_planes_xy, self.c_planes_xz, self.c_planes_yz]:
-            for i, c_plane in enumerate(c_planes):
-                c_plane = nn.Parameter(c_plane)
-                c_planes_para.append(c_plane)
-                c_planes[i] = c_plane
-        '''
-        for plane in [self.planes_xy, self.planes_xz, self.planes_yz]:
-            planes_para.append(*plane.parameters())
+        for submap in self.submap_list:
+            for plane in [submap.planes_xy, submap.planes_xz, submap.planes_yz]:
+                planes_para.append(*plane.parameters())
 
         #for c_plane in [self.c_planes_xy, self.c_planes_xz, self.c_planes_yz]:
             #c_planes_para.append(*c_plane.parameters())
@@ -335,7 +288,7 @@ class Mapper(object):
 
         for joint_iter in range(iters):
             if (not (idx == 0 and self.no_vis_on_first_frame)):
-                self.visualizer.save_imgs(idx, joint_iter, cur_gt_depth, cur_gt_color, cur_c2w, all_planes, self.decoders)
+                self.visualizer.save_imgs(idx, joint_iter, cur_gt_depth, cur_gt_color, cur_c2w, self.submap_list, self.decoders)
 
             if self.joint_opt:
                 ## We fix the oldest c2w to avoid drifting
@@ -364,7 +317,7 @@ class Mapper(object):
 
             depth_mask = (batch_gt_depth > 0)
 
-            depth, color, sdf, z_vals = self.renderer.render_batch_ray(all_planes, self.decoders, batch_rays_d,
+            depth, color, sdf, z_vals = self.renderer.render_batch_ray(self.submap_list, self.decoders, batch_rays_d,
                                                                        batch_rays_o, device, self.truncation,
                                                                        gt_depth=batch_gt_depth)
             # SDF losses
@@ -407,8 +360,7 @@ class Mapper(object):
                 None
         """
         cfg = self.cfg
-        #all_planes = (self.planes_xy, self.planes_xz, self.planes_yz, self.c_planes_xy, self.c_planes_xz, self.c_planes_yz)
-        all_planes = (self.planes_xy, self.planes_xz, self.planes_yz)
+        #all_planes = (self.planes_xy, self.planes_xz, self.planes_yz)
         idx, gt_color, gt_depth, gt_c2w = self.frame_reader[0]
         data_iterator = iter(self.frame_loader)
 
@@ -445,9 +397,56 @@ class Mapper(object):
             if not init_phase:
                 lr_factor = cfg['mapping']['lr_factor']
                 iters = cfg['mapping']['iters']
+
+                pts = get_sample_points(self.H, self.W, self.fx, self.fy, self.cx, self.cy, cur_c2w, 256,
+                                        gt_depth, self.device)
+                center = torch.mean(pts, dim=0)
+                square_dis = torch.sum(torch.square(pts[...,:] - center[None,:]), dim=1)
+                dis_mask = (square_dis < 10*torch.sum(square_dis)/square_dis.shape[0])
+                pts = torch.cat([pts[dis_mask], cur_c2w[:3, -1]], dim=0)
+                p_shape = pts.shape
+                for submap in self.submap_list:
+                    pts_mask = (pts < submap.boundary[0] or pts > submap.boundary[1]).any(dim=-1)
+                    pts = pts[pts_mask]
+                if pts.shape[0]/p_shape[0] > 0.3:
+                    pts_max, _ = torch.max(pts, dim=0)
+                    pts_min, _ = torch.min(pts, dim=0)
+                    boundary = torch.stack([pts_min, pts_max], dim=0)
+                    self.submap_list.append(Encoder(device=self.device, boundary=boundary, use_tcnn=self.use_tcnn,
+                                                    encoding_type=self.encoding_type,
+                                                    input_dim=2,
+                                                    num_levels=self.encoding_levels,
+                                                    level_dim=self.per_level_feature_dim,
+                                                    base_resolution=self.base_resolution))
+                    self.keyframe_list.append(idx)
+                    self.keyframe_dict.append({'gt_c2w': gt_c2w, 'idx': idx, 'color': gt_color.to(self.keyframe_device),
+                                               'depth': gt_depth.to(self.keyframe_device), 'est_c2w': cur_c2w.clone()})
+
             else:
                 lr_factor = cfg['mapping']['lr_first_factor']
                 iters = cfg['mapping']['iters_first']
+
+                ##compute the boundary of the first sub_map
+                #pts = get_points(self.H, self.W, self.fx, self.fy, self.cx, self.cy, cur_c2w, depth_mask, gt_depth, self.device)
+                pts = get_sample_points(self.H, self.W, self.fx, self.fy, self.cx, self.cy, cur_c2w, 256,
+                                        gt_depth, self.device)
+                center = torch.mean(pts, dim=0)
+                square_dis = torch.sum(torch.square(pts[...,:] - center[None,:]), dim=1)
+                dis_mask = (square_dis < 10*torch.sum(square_dis)/square_dis.shape[0])
+                pts = torch.cat([pts[dis_mask], cur_c2w[:3, -1]], dim=0)
+                pts_max, _ = torch.max(pts, dim=0)
+                pts_min, _ = torch.min(pts, dim=0)
+                boundary = torch.stack([pts_min, pts_max], dim=0)
+                self.submap_list.append(Encoder(device=self.device, boundary=boundary, use_tcnn=self.use_tcnn,
+                                                encoding_type=self.encoding_type,
+                                                input_dim=2,
+                                                num_levels=self.encoding_levels,
+                                                level_dim=self.per_level_feature_dim,
+                                                base_resolution=self.base_resolution))
+                self.keyframe_list.append(idx)
+                self.keyframe_dict.append({'gt_c2w': gt_c2w, 'idx': idx, 'color': gt_color.to(self.keyframe_device),
+                                           'depth': gt_depth.to(self.keyframe_device), 'est_c2w': cur_c2w.clone()})
+
 
             ## Deciding if camera poses should be jointly optimized
             self.joint_opt = (len(self.keyframe_list) > 4) and cfg['mapping']['joint_opt']
@@ -459,10 +458,12 @@ class Mapper(object):
                 self.estimate_c2w_list[idx] = cur_c2w
 
             # add new frame to keyframe set
+            '''
             if idx % self.keyframe_every == 0:
                 self.keyframe_list.append(idx)
                 self.keyframe_dict.append({'gt_c2w': gt_c2w, 'idx': idx, 'color': gt_color.to(self.keyframe_device),
                                            'depth': gt_depth.to(self.keyframe_device), 'est_c2w': cur_c2w.clone()})
+            '''
 
             init_phase = False
             self.mapping_first_frame[0] = 1     # mapping of first frame is done, can begin tracking
@@ -475,7 +476,7 @@ class Mapper(object):
 
             if (idx % self.mesh_freq == 0) and (not (idx == 0 and self.no_mesh_on_first_frame)):
                 mesh_out_file = f'{self.output}/mesh/{idx:05d}_mesh.ply'
-                self.mesher.get_mesh(mesh_out_file, all_planes, self.decoders, self.keyframe_dict, self.device)
+                self.mesher.get_mesh(mesh_out_file, self.submap_list, self.decoders, self.keyframe_dict, self.device)
                 cull_mesh(mesh_out_file, self.cfg, self.args, self.device, estimate_c2w_list=self.estimate_c2w_list[:idx+1])
 
             if idx == self.n_img-1:
@@ -484,7 +485,7 @@ class Mapper(object):
                 else:
                     mesh_out_file = f'{self.output}/mesh/final_mesh.ply'
                 print('here')
-                self.mesher.get_mesh(mesh_out_file, all_planes, self.decoders, self.keyframe_dict, self.device)
+                self.mesher.get_mesh(mesh_out_file, self.submap_list, self.decoders, self.keyframe_dict, self.device)
                 print('get_mesh')
                 cull_mesh(mesh_out_file, self.cfg, self.args, self.device, estimate_c2w_list=self.estimate_c2w_list)
                 print('done')

@@ -1,44 +1,3 @@
-# This file is a part of ESLAM.
-#
-# ESLAM is a NeRF-based SLAM system. It utilizes Neural Radiance Fields (NeRF)
-# to perform Simultaneous Localization and Mapping (SLAM) in real-time.
-# This software is the implementation of the paper "ESLAM: Efficient Dense SLAM
-# System Based on Hybrid Representation of Signed Distance Fields" by
-# Mohammad Mahdi Johari, Camilla Carta, and Francois Fleuret.
-#
-# Copyright 2023 ams-OSRAM AG
-#
-# Author: Mohammad Mahdi Johari <mohammad.johari@idiap.ch>
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-# This file is a modified version of https://github.com/cvg/nice-slam/blob/master/src/conv_onet/models/decoder.py
-# which is covered by the following copyright and permission notice:
-    #
-    # Copyright 2022 Zihan Zhu, Songyou Peng, Viktor Larsson, Weiwei Xu, Hujun Bao, Zhaopeng Cui, Martin R. Oswald, Marc Pollefeys
-    #
-    # Licensed under the Apache License, Version 2.0 (the "License");
-    # you may not use this file except in compliance with the License.
-    # You may obtain a copy of the License at
-    #
-    #     http://www.apache.org/licenses/LICENSE-2.0
-    #
-    # Unless required by applicable law or agreed to in writing, software
-    # distributed under the License is distributed on an "AS IS" BASIS,
-    # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-    # See the License for the specific language governing permissions and
-    # limitations under the License.
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -115,19 +74,40 @@ class Decoders(nn.Module):
         #feat = xy
         return feat
 
-    def get_raw_sdf(self, p_nor, all_planes):
+    def get_feature_from_points(self, pts, submap_list):
+        """
+        Get features from inputting points
+        Args:
+            pts (tensor, (N,3)): normalized 3D coordinates
+            submap_list (List): all submaps
+        Returns:
+            features (tensor)
+        """
+        index = torch.linspace(0, pts.shape[0]-1, pts.shape[0])
+        feat_list = []
+        indices_list = []
+        for submap in submap_list:
+            pts_mask = (pts >= submap.boundary[0] and pts <= submap.boundary[1]).all(dim=-1)
+            indices_list.append((index[pts_mask]))
+            if self.use_tcnn:
+                p_nor = normalize_3d_coordinate_to_unit(pts[pts_mask], submap.boundary)
+            else:
+                p_nor = normalize_3d_coordinate(pts[pts_mask], submap.boundary)
+            feat_list.append(self.sample_plane_feature(p_nor, submap.planes_xy, submap.planes_xz, submap.planes_yz))
+        feat_all = torch.zeros((pts.shape[0], feat_list[0].shape[1]))
+        for feat, indices in zip(feat_list, indices_list):
+            feat_all.index_put_((indices,), feat)
+
+        return feat_all
+
+    def get_raw_sdf(self, feat):
         """
         Get raw SDF
         Args:
-            p_nor (tensor): normalized 3D coordinates
-            all_planes (Tuple): all feature planes
+            feat (tensor, (N, feature dimension))
         Returns:
             sdf (tensor): raw SDF
         """
-        #planes_xy, planes_xz, planes_yz, c_planes_xy, c_planes_xz, c_planes_yz = all_planes
-        planes_xy, planes_xz, planes_yz = all_planes
-        feat = self.sample_plane_feature(p_nor, planes_xy, planes_xz, planes_yz)
-
         h = feat
         for i, l in enumerate(self.linears):
             h = self.linears[i](h)
@@ -136,20 +116,15 @@ class Decoders(nn.Module):
 
         return sdf
 
-    def get_raw_rgb(self, p_nor, all_planes):
+    def get_raw_rgb(self, feat):
         """
         Get raw RGB
         Args:
-            p_nor (tensor): normalized 3D coordinates
-            all_planes (Tuple): all feature planes
+            feat (tensor, (N, feature dimension))
         Returns:
             rgb (tensor): raw RGB
         """
-        #planes_xy, planes_xz, planes_yz, c_planes_xy, c_planes_xz, c_planes_yz = all_planes\
-        planes_xy, planes_xz, planes_yz = all_planes
-        c_feat = self.sample_plane_feature(p_nor, planes_xy, planes_xz, planes_yz)
-
-        h = c_feat
+        h = feat
         for i, l in enumerate(self.c_linears):
             h = self.c_linears[i](h)
             h = F.relu(h, inplace=True)
@@ -157,24 +132,22 @@ class Decoders(nn.Module):
 
         return rgb
 
-    def forward(self, p, all_planes):
+    #def forward(self, p, all_planes):
+    def forward(self, p, submap_list):
         """
         Forward pass
         Args:
             p (tensor): 3D coordinates
-            all_planes (Tuple): all feature planes
+            submap_list (List): all submaps
         Returns:
             raw (tensor): raw SDF and RGB
         """
         p_shape = p.shape
+        p.reshape(-1)
+        features = self.get_feature_from_points(p, submap_list)
 
-        if self.use_tcnn:
-            p_nor = normalize_3d_coordinate_to_unit(p.clone(), self.bound)
-        else:
-            p_nor = normalize_3d_coordinate(p.clone(), self.bound)
-
-        sdf = self.get_raw_sdf(p_nor, all_planes)
-        rgb = self.get_raw_rgb(p_nor, all_planes)
+        sdf = self.get_raw_sdf(features)
+        rgb = self.get_raw_rgb(features)
 
         raw = torch.cat([rgb, sdf.unsqueeze(-1)], dim=-1)
         raw = raw.reshape(*p_shape[:-1], -1)

@@ -1,44 +1,3 @@
-# This file is a part of ESLAM.
-#
-# ESLAM is a NeRF-based SLAM system. It utilizes Neural Radiance Fields (NeRF)
-# to perform Simultaneous Localization and Mapping (SLAM) in real-time.
-# This software is the implementation of the paper "ESLAM: Efficient Dense SLAM
-# System Based on Hybrid Representation of Signed Distance Fields" by
-# Mohammad Mahdi Johari, Camilla Carta, and Francois Fleuret.
-#
-# Copyright 2023 ams-OSRAM AG
-#
-# Author: Mohammad Mahdi Johari <mohammad.johari@idiap.ch>
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-# This file is a modified version of https://github.com/cvg/nice-slam/blob/master/src/common.py
-# which is covered by the following copyright and permission notice:
-    #
-    # Copyright 2022 Zihan Zhu, Songyou Peng, Viktor Larsson, Weiwei Xu, Hujun Bao, Zhaopeng Cui, Martin R. Oswald, Marc Pollefeys
-    #
-    # Licensed under the Apache License, Version 2.0 (the "License");
-    # you may not use this file except in compliance with the License.
-    # You may obtain a copy of the License at
-    #
-    #     http://www.apache.org/licenses/LICENSE-2.0
-    #
-    # Unless required by applicable law or agreed to in writing, software
-    # distributed under the License is distributed on an "AS IS" BASIS,
-    # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-    # See the License for the specific language governing permissions and
-    # limitations under the License.
-
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -325,6 +284,64 @@ def get_rays(H, W, fx, fy, cx, cy, c2w, device):
     return rays_o, rays_d
 
 
+def get_points(H, W, fx, fy, cx, cy, c2w, gt_depth, device):
+    """
+    Get points in world for a whole image.
+
+    """
+    if isinstance(c2w, np.ndarray):
+        c2w = torch.from_numpy(c2w)
+    # pytorch's meshgrid has indexing='ij'
+    depth_mask = (gt_depth > 0)
+    i, j = torch.meshgrid(torch.linspace(0, W-1, W), torch.linspace(0, H-1, H))
+    i = i.t()  # transpose
+    j = j.t()
+    i = i[depth_mask].reshape(-1)
+    j = j[depth_mask].reshape(-1)
+    gt_depth = gt_depth[depth_mask].reshape(-1)
+    dirs = torch.stack([(i-cx)/fx, -(j-cy)/fy, -torch.ones_like(i)], -1).to(device)
+    dirs = dirs.reshape(H, W, 3)
+    gt_depth = gt_depth.reshape(H, W)
+    # Rotate ray directions from camera frame to the world frame
+    # dot product, equals to: [c2w.dot(dir) for dir in dirs]
+    rays_d = torch.sum(dirs * c2w[:3, :3], -1)
+    rays_o = c2w[:3, -1].expand(rays_d.shape)
+    pts = rays_o[..., :] + rays_d[..., :] * gt_depth[..., None]
+    pts.reshape(-1, 3)
+    return pts
+
+
+def get_sample_points(H, W, fx, fy, cx, cy, c2w, n, gt_depth, device):
+    """
+    Get points in world for a whole image.
+
+    """
+    if isinstance(c2w, np.ndarray):
+        c2w = torch.from_numpy(c2w)
+    # pytorch's meshgrid has indexing='ij'
+    depth_mask = (gt_depth > 0)
+    i, j = torch.meshgrid(torch.linspace(0, W-1, W), torch.linspace(0, H-1, H))
+    i = i.t()  # transpose
+    j = j.t()
+    i = i[depth_mask].reshape(-1)
+    j = j[depth_mask].reshape(-1)
+    gt_depth = gt_depth[depth_mask].reshape(-1)
+    indices = torch.randint(i.shape[0], n, device=device)
+    i = i[indices]
+    j = j[indices]
+    gt_depth = gt_depth[indices]
+    dirs = torch.stack([(i-cx)/fx, -(j-cy)/fy, -torch.ones_like(i)], -1).to(device)
+    dirs = dirs.reshape(H, W, 3)
+    gt_depth = gt_depth.reshape(H, W)
+    # Rotate ray directions from camera frame to the world frame
+    # dot product, equals to: [c2w.dot(dir) for dir in dirs]
+    rays_d = torch.sum(dirs * c2w[:3, :3], -1)
+    rays_o = c2w[:3, -1].expand(rays_d.shape)
+    pts = rays_o[..., :] + rays_d[..., :] * gt_depth[..., None]
+    pts.reshape(-1, 3)
+    return pts
+
+
 def normalize_3d_coordinate(p, bound):
     """
     Normalize 3d coordinate to [-1, 1] range.
@@ -336,9 +353,9 @@ def normalize_3d_coordinate(p, bound):
 
     """
     p = p.reshape(-1, 3)
-    p[:, 0] = ((p[:, 0]-bound[0, 0])/(bound[0, 1]-bound[0, 0]))*2-1.0
-    p[:, 1] = ((p[:, 1]-bound[1, 0])/(bound[1, 1]-bound[1, 0]))*2-1.0
-    p[:, 2] = ((p[:, 2]-bound[2, 0])/(bound[2, 1]-bound[2, 0]))*2-1.0
+    p[:, 0] = ((p[:, 0]-bound[0, 0])/(bound[1, 0]-bound[0, 0]))*2-1.0
+    p[:, 1] = ((p[:, 1]-bound[0, 1])/(bound[1, 1]-bound[0, 1]))*2-1.0
+    p[:, 2] = ((p[:, 2]-bound[0, 2])/(bound[1, 2]-bound[0, 2]))*2-1.0
     return p
 
 
@@ -353,7 +370,7 @@ def normalize_3d_coordinate_to_unit(p, bound):
 
     """
     p = p.reshape(-1, 3)
-    p[:, 0] = ((p[:, 0]-bound[0, 0])/(bound[0, 1]-bound[0, 0]))
-    p[:, 1] = ((p[:, 1]-bound[1, 0])/(bound[1, 1]-bound[1, 0]))
-    p[:, 2] = ((p[:, 2]-bound[2, 0])/(bound[2, 1]-bound[2, 0]))
+    p[:, 0] = ((p[:, 0]-bound[0, 0])/(bound[1, 0]-bound[0, 0]))
+    p[:, 1] = ((p[:, 1]-bound[0, 1])/(bound[1, 1]-bound[0, 1]))
+    p[:, 2] = ((p[:, 2]-bound[0, 2])/(bound[1, 2]-bound[0, 2]))
     return p

@@ -1,44 +1,3 @@
-# This file is a part of ESLAM.
-#
-# ESLAM is a NeRF-based SLAM system. It utilizes Neural Radiance Fields (NeRF)
-# to perform Simultaneous Localization and Mapping (SLAM) in real-time.
-# This software is the implementation of the paper "ESLAM: Efficient Dense SLAM
-# System Based on Hybrid Representation of Signed Distance Fields" by
-# Mohammad Mahdi Johari, Camilla Carta, and Francois Fleuret.
-#
-# Copyright 2023 ams-OSRAM AG
-#
-# Author: Mohammad Mahdi Johari <mohammad.johari@idiap.ch>
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-# This file is a modified version of https://github.com/cvg/nice-slam/blob/master/src/Tracker.py
-# which is covered by the following copyright and permission notice:
-    #
-    # Copyright 2022 Zihan Zhu, Songyou Peng, Viktor Larsson, Weiwei Xu, Hujun Bao, Zhaopeng Cui, Martin R. Oswald, Marc Pollefeys
-    #
-    # Licensed under the Apache License, Version 2.0 (the "License");
-    # you may not use this file except in compliance with the License.
-    # You may obtain a copy of the License at
-    #
-    #     http://www.apache.org/licenses/LICENSE-2.0
-    #
-    # Unless required by applicable law or agreed to in writing, software
-    # distributed under the License is distributed on an "AS IS" BASIS,
-    # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-    # See the License for the specific language governing permissions and
-    # limitations under the License.
-
 import torch
 import copy
 import os
@@ -79,9 +38,10 @@ class Tracker(object):
         self.estimate_c2w_list = eslam.estimate_c2w_list
         self.truncation = eslam.truncation
 
-        self.shared_planes_xy = eslam.shared_planes_xy
-        self.shared_planes_xz = eslam.shared_planes_xz
-        self.shared_planes_yz = eslam.shared_planes_yz
+        self.submap_list = eslam.submap_list
+        #self.shared_planes_xy = eslam.shared_planes_xy
+        #self.shared_planes_xz = eslam.shared_planes_xz
+        #self.shared_planes_yz = eslam.shared_planes_yz
 
         #self.shared_c_planes_xy = eslam.shared_c_planes_xy
         #self.shared_c_planes_xz = eslam.shared_c_planes_xz
@@ -118,25 +78,7 @@ class Tracker(object):
         self.H, self.W, self.fx, self.fy, self.cx, self.cy = eslam.H, eslam.W, eslam.fx, eslam.fy, eslam.cx, eslam.cy
         self.decoders = self.shared_decoders
 
-        '''
-        self.decoders = copy.deepcopy(self.shared_decoders)
 
-        self.planes_xy = copy.deepcopy(self.shared_planes_xy)
-        self.planes_xz = copy.deepcopy(self.shared_planes_xz)
-        self.planes_yz = copy.deepcopy(self.shared_planes_yz)
-
-        self.c_planes_xy = copy.deepcopy(self.shared_c_planes_xy)
-        self.c_planes_xz = copy.deepcopy(self.shared_c_planes_xz)
-        self.c_planes_yz = copy.deepcopy(self.shared_c_planes_yz)
-        
-        for p in self.decoders.parameters():
-            p.requires_grad_(False)
-        for en in [self.planes_xy, self.planes_xz, self.planes_yz,
-                   self.c_planes_xy, self.c_planes_xz, self.c_planes_yz]:
-            for para in en.parameters():
-                para.requires_grad_(False)
-        
-        '''
     def sdf_losses(self, sdf, z_vals, gt_depth):
         """
         Computes the losses for a signed distance function (SDF) given its values, depth values and ground truth depth.
@@ -187,8 +129,8 @@ class Tracker(object):
         Returns:
             loss (float): The value of loss.
         """
-        #all_planes = (self.planes_xy, self.planes_xz, self.planes_yz, self.c_planes_xy, self.c_planes_xz, self.c_planes_yz)
-        all_planes = (self.shared_planes_xy, self.shared_planes_xz, self.shared_planes_yz)
+
+        #all_planes = (self.shared_planes_xy, self.shared_planes_xz, self.shared_planes_yz)
         device = self.device
         H, W, fx, fy, cx, cy = self.H, self.W, self.fx, self.fy, self.cx, self.cy
 
@@ -197,7 +139,7 @@ class Tracker(object):
                                                                                  self.ignore_edge_W, W-self.ignore_edge_W,
                                                                                  batch_size, H, W, fx, fy, cx, cy, c2w,
                                                                                  gt_depth, gt_color, device)
-        #print('rays before', batch_rays_d)
+
         # should pre-filter those out of bounding box depth value
         '''
         with torch.no_grad():
@@ -216,7 +158,7 @@ class Tracker(object):
         '''
 
         #print('rays after', batch_rays_d)
-        depth, color, sdf, z_vals = self.renderer.render_batch_ray(all_planes, self.decoders, batch_rays_d, batch_rays_o,
+        depth, color, sdf, z_vals = self.renderer.render_batch_ray(self.submap_list, self.decoders, batch_rays_d, batch_rays_o,
                                                                    self.device, self.truncation, gt_depth=batch_gt_depth)
         #print('depth', depth)
         #print('color', color)
@@ -240,34 +182,7 @@ class Tracker(object):
 
         return loss.item()
 
-    '''
-    def update_params_from_mapping(self):
-        """
-        Update the parameters of scene representation from the mapping thread.
-        """
-        if self.mapping_idx[0] != self.prev_mapping_idx:
-            if self.verbose:
-                print('Tracking: update the parameters from mapping')
 
-            self.decoders.load_state_dict(self.shared_decoders.state_dict())
-
-            for plane, self_plane in zip(
-                [self.shared_planes_xy, self.shared_planes_xz, self.shared_planes_yz],
-                    [self.planes_xy, self.planes_xz, self.planes_yz]):
-                self_plane = copy.deepcopy(plane)
-                for para in self_plane.parameters():
-                    para.requires_grad_(False)
-
-            for c_plane, self_c_plane in zip(
-                [self.shared_c_planes_xy, self.shared_c_planes_xz, self.shared_c_planes_yz],
-                    [self.c_planes_xy, self.c_planes_xz, self.c_planes_yz]):
-                self_c_plane = copy.deepcopy(c_plane)
-                for para in self_c_plane.parameters():
-                    para.requires_grad_(False)
-
-            self.prev_mapping_idx = self.mapping_idx[0].clone()
-    
-    '''
     def run(self):
         """
             Runs the tracking thread for the input RGB-D frames.
@@ -279,8 +194,7 @@ class Tracker(object):
                 None
         """
         device = self.device
-        #all_planes = (self.planes_xy, self.planes_xz, self.planes_yz, self.c_planes_xy, self.c_planes_xz, self.c_planes_yz)
-        all_planes = (self.shared_planes_xy, self.shared_planes_xz, self.shared_planes_yz)
+        #all_planes = (self.shared_planes_xy, self.shared_planes_xz, self.shared_planes_yz)
         if self.verbose:
             pbar = self.frame_loader
         else:

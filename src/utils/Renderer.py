@@ -1,46 +1,5 @@
-# This file is a part of ESLAM.
-#
-# ESLAM is a NeRF-based SLAM system. It utilizes Neural Radiance Fields (NeRF)
-# to perform Simultaneous Localization and Mapping (SLAM) in real-time.
-# This software is the implementation of the paper "ESLAM: Efficient Dense SLAM
-# System Based on Hybrid Representation of Signed Distance Fields" by
-# Mohammad Mahdi Johari, Camilla Carta, and Francois Fleuret.
-#
-# Copyright 2023 ams-OSRAM AG
-#
-# Author: Mohammad Mahdi Johari <mohammad.johari@idiap.ch>
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-# This file is a modified version of https://github.com/cvg/nice-slam/blob/master/src/utils/Renderer.py
-# which is covered by the following copyright and permission notice:
-    #
-    # Copyright 2022 Zihan Zhu, Songyou Peng, Viktor Larsson, Weiwei Xu, Hujun Bao, Zhaopeng Cui, Martin R. Oswald, Marc Pollefeys
-    #
-    # Licensed under the Apache License, Version 2.0 (the "License");
-    # you may not use this file except in compliance with the License.
-    # You may obtain a copy of the License at
-    #
-    #     http://www.apache.org/licenses/LICENSE-2.0
-    #
-    # Unless required by applicable law or agreed to in writing, software
-    # distributed under the License is distributed on an "AS IS" BASIS,
-    # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-    # See the License for the specific language governing permissions and
-    # limitations under the License.
-
 import torch
-from src.common import get_rays, sample_pdf, normalize_3d_coordinate, normalize_3d_coordinate_to_unit
+from src.common import get_rays, sample_pdf
 
 class Renderer(object):
     """
@@ -79,11 +38,11 @@ class Renderer(object):
 
         return lower + (upper - lower) * t_rand
 
-    def render_batch_ray(self, all_planes, decoders, rays_d, rays_o, device, truncation, gt_depth=None):
+    def render_batch_ray(self, submap_list, decoders, rays_d, rays_o, device, truncation, gt_depth=None):
         """
         Render depth and color for a batch of rays.
         Args:
-            all_planes (Tuple): all feature planes.
+            submap_list (List): all submaps.
             decoders (torch.nn.Module): decoders for TSDF and color.
             rays_d (tensor): ray directions.
             rays_o (tensor): ray origins.
@@ -102,7 +61,7 @@ class Renderer(object):
         n_rays = rays_o.shape[0]
 
         z_vals = torch.empty([n_rays, n_stratified + n_importance], device=device)
-        near = 0.0
+        near = 0.1
         t_vals_uni = torch.linspace(0., 1., steps=n_stratified, device=device)
         t_vals_surface = torch.linspace(0., 1., steps=n_importance, device=device)
 
@@ -142,8 +101,9 @@ class Renderer(object):
                     z_vals_uni = self.perturbation(z_vals_uni)
                 pts_uni = rays_o_uni.unsqueeze(1) + rays_d_uni.unsqueeze(1) * z_vals_uni.unsqueeze(-1)  # [n_rays, n_stratified, 3]
 
-                pts_uni_nor = normalize_3d_coordinate(pts_uni.clone(), self.bound)  # [n_rays*n_stratified, 3]
-                sdf_uni = decoders.get_raw_sdf(pts_uni_nor, all_planes)
+                #pts_uni_nor = normalize_3d_coordinate(pts_uni.clone(), self.bound)  # [n_rays*n_stratified, 3]
+                features = decoders.get_feature_from_points(pts_uni, submap_list)
+                sdf_uni = decoders.get_raw_sdf(features)
                 sdf_uni = sdf_uni.reshape(*pts_uni.shape[0:2])  # [n_rays, n_stratified]
                 alpha_uni = self.sdf2alpha(sdf_uni, decoders.beta)
                 weights_uni = alpha_uni * torch.cumprod(torch.cat([torch.ones((alpha_uni.shape[0], 1), device=device)
@@ -158,7 +118,8 @@ class Renderer(object):
         pts = rays_o[..., None, :] + rays_d[..., None, :] * \
               z_vals[..., :, None]  # [n_rays, n_stratified+n_importance, 3]
 
-        raw = decoders(pts, all_planes)  # [n_rays, n_stratified+n_importance, 4]
+        #raw = decoders(pts, all_planes)  # [n_rays, n_stratified+n_importance, 4]
+        raw = decoders(pts, submap_list)  # [n_rays, n_stratified+n_importance, 4]
         alpha = self.sdf2alpha(raw[..., -1], decoders.beta)
         weights = alpha * torch.cumprod(torch.cat([torch.ones((alpha.shape[0], 1), device=device)
                                                 , (1. - alpha + 1e-10)], -1), -1)[:, :-1]  # [n_rays, n_stratified+n_importance]
@@ -174,11 +135,11 @@ class Renderer(object):
         """
         return 1. - torch.exp(-beta * torch.sigmoid(-sdf * beta))
 
-    def render_img(self, all_planes, decoders, c2w, truncation, device, gt_depth=None):
+    def render_img(self, submap_list, decoders, c2w, truncation, device, gt_depth=None):
         """
         Renders out depth and color images.
         Args:
-            all_planes (Tuple): feature planes
+            submap_list (List): all submaps.
             decoders (torch.nn.Module): decoders for TSDF and color.
             c2w (tensor, 4*4): camera pose.
             truncation (float): truncation distance.
@@ -206,11 +167,11 @@ class Renderer(object):
                 rays_d_batch = rays_d[i:i+ray_batch_size]
                 rays_o_batch = rays_o[i:i+ray_batch_size]
                 if gt_depth is None:
-                    ret = self.render_batch_ray(all_planes, decoders, rays_d_batch, rays_o_batch,
+                    ret = self.render_batch_ray(submap_list, decoders, rays_d_batch, rays_o_batch,
                                                 device, truncation, gt_depth=None)
                 else:
                     gt_depth_batch = gt_depth[i:i+ray_batch_size]
-                    ret = self.render_batch_ray(all_planes, decoders, rays_d_batch, rays_o_batch,
+                    ret = self.render_batch_ray(submap_list, decoders, rays_d_batch, rays_o_batch,
                                                 device, truncation, gt_depth=gt_depth_batch)
 
                 depth, color, _, _ = ret
