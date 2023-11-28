@@ -26,7 +26,7 @@ class Tracker(object):
         self.scale = cfg['scale']
 
         self.idx = eslam.idx
-        self.bound = eslam.bound
+        #self.bound = eslam.bound
         self.mesher = eslam.mesher
         self.output = eslam.output
         self.verbose = eslam.verbose

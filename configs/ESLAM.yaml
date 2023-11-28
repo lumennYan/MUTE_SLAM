@@ -47,7 +47,7 @@ mapping:
   ckpt_freq: 2000
   keyframe_every: 4
   mapping_window_size: 20
-  keyframe_selection_method: 'overlap'
+  keyframe_selection_method: 'global'
   lr_first_factor: 5
   lr_factor: 1
   pixels: 4000

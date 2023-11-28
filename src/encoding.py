@@ -5,7 +5,7 @@ import numpy as np
 class Encoder:
     def __init__(self, device, boundary, use_tcnn=False, encoding_type='hashgrid',
                  input_dim=2, num_levels=16, level_dim=2, base_resolution=16, align_corners=True):
-        self.boundary = torch.from_numpy(np.array(boundary))
+        self.boundary = boundary
         self.edge_length = self.boundary[1] - self.boundary[0]
         self.device = device
         self.desired_resolution_xy = (torch.sqrt(self.edge_length[0] * self.edge_length[1]) * 100).int().item()

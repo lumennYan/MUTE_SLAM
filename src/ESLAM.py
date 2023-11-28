@@ -58,7 +58,7 @@ class ESLAM():
         self.use_tcnn = cfg['encoding']['tcnn']
 
         #self.load_bound(cfg)
-        self.submap_size = cfg['mapping']['submap_size']
+        #self.submap_size = cfg['mapping']['submap_size']
         self.submap_list = []
 
         self.init_planes(cfg)

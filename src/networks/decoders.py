@@ -14,8 +14,9 @@ class Decoders(nn.Module):
         learnable_beta: whether to learn beta
 
     """
-    def __init__(self, in_dim=32, hidden_size=32, truncation=0.08, n_blocks=2, learnable_beta=True, use_tcnn=False):
+    def __init__(self, device, in_dim=32, hidden_size=32, truncation=0.08, n_blocks=2, learnable_beta=True, use_tcnn=False):
         super().__init__()
+        self.device = device
         self.in_dim = in_dim
         self.truncation = truncation
         self.n_blocks = n_blocks
@@ -83,18 +84,22 @@ class Decoders(nn.Module):
         Returns:
             features (tensor)
         """
-        index = torch.linspace(0, pts.shape[0]-1, pts.shape[0])
+        index = torch.linspace(0, pts.shape[0]-1, pts.shape[0], dtype=torch.long)
         feat_list = []
         indices_list = []
+        pre_mask = torch.zeros(pts.shape[0], dtype=torch.bool, device=self.device)
         for submap in submap_list:
-            pts_mask = (pts >= submap.boundary[0] and pts <= submap.boundary[1]).all(dim=-1)
-            indices_list.append((index[pts_mask]))
+            pts_mask = torch.bitwise_and((pts[..., :] > submap.boundary[0]).all(dim=-1),
+                                         (pts[..., :] < submap.boundary[1]).all(dim=-1))
+            pts_mask = torch.bitwise_and(pts_mask, torch.bitwise_xor(pre_mask, pts_mask))
+            pre_mask = pts_mask
+            indices_list.append(index[pts_mask])
             if self.use_tcnn:
                 p_nor = normalize_3d_coordinate_to_unit(pts[pts_mask], submap.boundary)
             else:
                 p_nor = normalize_3d_coordinate(pts[pts_mask], submap.boundary)
             feat_list.append(self.sample_plane_feature(p_nor, submap.planes_xy, submap.planes_xz, submap.planes_yz))
-        feat_all = torch.zeros((pts.shape[0], feat_list[0].shape[1]))
+        feat_all = torch.empty((pts.shape[0], feat_list[0].shape[1]), device=self.device)
         for feat, indices in zip(feat_list, indices_list):
             feat_all.index_put_((indices,), feat)
 
@@ -143,7 +148,7 @@ class Decoders(nn.Module):
             raw (tensor): raw SDF and RGB
         """
         p_shape = p.shape
-        p.reshape(-1)
+        p = p.reshape(-1, 3)
         features = self.get_feature_from_points(p, submap_list)
 
         sdf = self.get_raw_sdf(features)

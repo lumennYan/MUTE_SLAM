@@ -17,7 +17,7 @@ class Renderer(object):
         self.n_importance = cfg['rendering']['n_importance']
 
         self.scale = cfg['scale']
-        self.bound = eslam.bound.to(eslam.device, non_blocking=True)
+        #self.bound = eslam.bound.to(eslam.device, non_blocking=True)
 
         self.H, self.W, self.fx, self.fy, self.cx, self.cy = eslam.H, eslam.W, eslam.fx, eslam.fy, eslam.cx, eslam.cy
 
@@ -58,10 +58,10 @@ class Renderer(object):
         """
         n_stratified = self.n_stratified
         n_importance = self.n_importance
-        n_rays = rays_o.shape[0]
+        #n_rays = rays_o.shape[0]
 
-        z_vals = torch.empty([n_rays, n_stratified + n_importance], device=device)
-        near = 0.1
+        #z_vals = torch.empty([n_rays, n_stratified + n_importance], device=device)
+        near = 0.
         t_vals_uni = torch.linspace(0., 1., steps=n_stratified, device=device)
         t_vals_surface = torch.linspace(0., 1., steps=n_importance, device=device)
 
@@ -69,6 +69,8 @@ class Renderer(object):
         gt_depth = gt_depth.reshape(-1, 1)
         gt_mask = (gt_depth > 0).squeeze()
         gt_nonezero = gt_depth[gt_mask]
+        rays_o = rays_o[gt_mask]
+        rays_d = rays_d[gt_mask]
 
         ## Sampling points around the gt depth (surface)
         gt_depth_surface = gt_nonezero.expand(-1, n_importance)
@@ -79,11 +81,11 @@ class Renderer(object):
         ## in the range of 1.2*gt_depth, a uniform sampling
         z_vals_free = near + 1.2 * gt_depth_free * t_vals_uni
 
-        z_vals_nonzero, _ = torch.sort(torch.cat([z_vals_free, z_vals_surface], dim=-1), dim=-1)
+        z_vals, _ = torch.sort(torch.cat([z_vals_free, z_vals_surface], dim=-1), dim=-1)
         if self.perturb:
-            z_vals_nonzero = self.perturbation(z_vals_nonzero)
-        z_vals[gt_mask] = z_vals_nonzero
+            z_vals = self.perturbation(z_vals)
 
+        '''
         ### pixels without gt depth (importance sampling):
         if not gt_mask.all():
             with torch.no_grad():
@@ -113,7 +115,7 @@ class Renderer(object):
                 z_samples_uni = sample_pdf(z_vals_uni_mid, weights_uni[..., 1:-1], n_importance, det=False, device=device)
                 z_vals_uni, ind = torch.sort(torch.cat([z_vals_uni, z_samples_uni], -1), -1)
                 z_vals[~gt_mask] = z_vals_uni
-
+        '''
 
         pts = rays_o[..., None, :] + rays_d[..., None, :] * \
               z_vals[..., :, None]  # [n_rays, n_stratified+n_importance, 3]

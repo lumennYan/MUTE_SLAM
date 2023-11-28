@@ -46,6 +46,7 @@ def get_model(cfg):
     truncation = cfg['model']['truncation']
     learnable_beta = cfg['rendering']['learnable_beta']
     use_tcnn = cfg['encoding']['tcnn']
-    decoder = Decoders(in_dim=in_dim, truncation=truncation, learnable_beta=learnable_beta, use_tcnn=use_tcnn)
+    device = cfg['device']
+    decoder = Decoders(device=device, in_dim=in_dim, truncation=truncation, learnable_beta=learnable_beta, use_tcnn=use_tcnn)
 
     return decoder

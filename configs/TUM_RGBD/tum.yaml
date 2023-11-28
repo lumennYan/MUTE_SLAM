@@ -7,13 +7,13 @@ tracking:
   ignore_edge_H: 20
   lr_T: 0.01
   lr_R: 0.002
-  pixels: 5000
-  iters: 10
+  pixels: 2000
+  iters: 5
 mapping:
-  every_frame: 1
-  keyframe_every: 1
-  pixels: 5000
-  iters: 20
+  every_frame: 2
+  keyframe_every: 2
+  pixels: 4000
+  iters: 10
 cam:  #NOTE: intrinsic is different per scene in TUM
   H: 480
   W: 640

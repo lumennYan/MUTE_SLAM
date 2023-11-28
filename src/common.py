@@ -300,11 +300,9 @@ def get_points(H, W, fx, fy, cx, cy, c2w, gt_depth, device):
     j = j[depth_mask].reshape(-1)
     gt_depth = gt_depth[depth_mask].reshape(-1)
     dirs = torch.stack([(i-cx)/fx, -(j-cy)/fy, -torch.ones_like(i)], -1).to(device)
-    dirs = dirs.reshape(H, W, 3)
-    gt_depth = gt_depth.reshape(H, W)
+    dirs = dirs[..., None]
     # Rotate ray directions from camera frame to the world frame
-    # dot product, equals to: [c2w.dot(dir) for dir in dirs]
-    rays_d = torch.sum(dirs * c2w[:3, :3], -1)
+    rays_d = torch.matmul(c2w[:3, :3], dirs).squeeze()
     rays_o = c2w[:3, -1].expand(rays_d.shape)
     pts = rays_o[..., :] + rays_d[..., :] * gt_depth[..., None]
     pts.reshape(-1, 3)
@@ -326,16 +324,14 @@ def get_sample_points(H, W, fx, fy, cx, cy, c2w, n, gt_depth, device):
     i = i[depth_mask].reshape(-1)
     j = j[depth_mask].reshape(-1)
     gt_depth = gt_depth[depth_mask].reshape(-1)
-    indices = torch.randint(i.shape[0], n, device=device)
+    indices = torch.randint(i.shape[0], (n,), device=device)
     i = i[indices]
     j = j[indices]
     gt_depth = gt_depth[indices]
     dirs = torch.stack([(i-cx)/fx, -(j-cy)/fy, -torch.ones_like(i)], -1).to(device)
-    dirs = dirs.reshape(H, W, 3)
-    gt_depth = gt_depth.reshape(H, W)
+    dirs = dirs[..., None]
     # Rotate ray directions from camera frame to the world frame
-    # dot product, equals to: [c2w.dot(dir) for dir in dirs]
-    rays_d = torch.sum(dirs * c2w[:3, :3], -1)
+    rays_d = torch.matmul(c2w[:3, :3], dirs).squeeze()
     rays_o = c2w[:3, -1].expand(rays_d.shape)
     pts = rays_o[..., :] + rays_d[..., :] * gt_depth[..., None]
     pts.reshape(-1, 3)

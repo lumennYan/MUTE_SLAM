@@ -29,7 +29,7 @@ class Mapper(object):
 
         self.idx = eslam.idx
         self.truncation = eslam.truncation
-        self.bound = eslam.bound
+        #self.bound = eslam.bound
         self.logger = eslam.logger
         self.mesher = eslam.mesher
         self.output = eslam.output
@@ -44,9 +44,9 @@ class Mapper(object):
 
         self.encoding_type = eslam.encoding_type
         self.encoding_levels = eslam.encoding_levels
-        self.desired_resolution = eslam.desired_resolution
+        #self.desired_resolution = eslam.desired_resolution
         self.base_resolution = eslam.base_resolution
-        self.log2_hashmap_size = eslam.log2_hashmap_size
+        #self.log2_hashmap_size = eslam.log2_hashmap_size
         self.per_level_feature_dim = eslam.per_level_feature_dim
         self.use_tcnn = eslam.use_tcnn
         #self.planes_xy = eslam.shared_planes_xy
@@ -321,13 +321,13 @@ class Mapper(object):
                                                                        batch_rays_o, device, self.truncation,
                                                                        gt_depth=batch_gt_depth)
             # SDF losses
-            loss = self.sdf_losses(sdf[depth_mask], z_vals[depth_mask], batch_gt_depth[depth_mask])
+            loss = self.sdf_losses(sdf, z_vals, batch_gt_depth[depth_mask])
 
             # Color loss
-            loss = loss + self.w_color * torch.square(batch_gt_color - color).mean()
+            loss = loss + self.w_color * torch.square(batch_gt_color[depth_mask] - color).mean()
 
             # Depth loss
-            loss = loss + self.w_depth * torch.square(batch_gt_depth[depth_mask] - depth[depth_mask]).mean()
+            loss = loss + self.w_depth * torch.square(batch_gt_depth[depth_mask] - depth).mean()
 
             #print('mapping_loss', loss)
             optimizer.zero_grad()
@@ -403,15 +403,16 @@ class Mapper(object):
                 center = torch.mean(pts, dim=0)
                 square_dis = torch.sum(torch.square(pts[...,:] - center[None,:]), dim=1)
                 dis_mask = (square_dis < 10*torch.sum(square_dis)/square_dis.shape[0])
-                pts = torch.cat([pts[dis_mask], cur_c2w[:3, -1]], dim=0)
+                pts = torch.cat([pts[dis_mask], cur_c2w[None, :3, -1]], dim=0)
                 p_shape = pts.shape
                 for submap in self.submap_list:
-                    pts_mask = (pts < submap.boundary[0] or pts > submap.boundary[1]).any(dim=-1)
-                    pts = pts[pts_mask]
+                    pts_mask = torch.bitwise_and((pts > submap.boundary[0]).all(-1),
+                                                 (pts < submap.boundary[1]).all(dim=-1))
+                    pts = pts[~pts_mask]
                 if pts.shape[0]/p_shape[0] > 0.3:
                     pts_max, _ = torch.max(pts, dim=0)
                     pts_min, _ = torch.min(pts, dim=0)
-                    boundary = torch.stack([pts_min, pts_max], dim=0)
+                    boundary = torch.stack([pts_min-0.2, pts_max+0.2], dim=0)
                     self.submap_list.append(Encoder(device=self.device, boundary=boundary, use_tcnn=self.use_tcnn,
                                                     encoding_type=self.encoding_type,
                                                     input_dim=2,
@@ -431,12 +432,12 @@ class Mapper(object):
                 pts = get_sample_points(self.H, self.W, self.fx, self.fy, self.cx, self.cy, cur_c2w, 256,
                                         gt_depth, self.device)
                 center = torch.mean(pts, dim=0)
-                square_dis = torch.sum(torch.square(pts[...,:] - center[None,:]), dim=1)
+                square_dis = torch.sum(torch.square(pts[..., :] - center[None, :]), dim=-1)
                 dis_mask = (square_dis < 10*torch.sum(square_dis)/square_dis.shape[0])
-                pts = torch.cat([pts[dis_mask], cur_c2w[:3, -1]], dim=0)
+                pts = torch.cat([pts[dis_mask], cur_c2w[None, :3, -1]], dim=0)
                 pts_max, _ = torch.max(pts, dim=0)
                 pts_min, _ = torch.min(pts, dim=0)
-                boundary = torch.stack([pts_min, pts_max], dim=0)
+                boundary = torch.stack([pts_min-0.5, pts_max+0.5], dim=0)
                 self.submap_list.append(Encoder(device=self.device, boundary=boundary, use_tcnn=self.use_tcnn,
                                                 encoding_type=self.encoding_type,
                                                 input_dim=2,

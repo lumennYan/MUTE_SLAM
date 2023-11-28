@@ -70,10 +70,10 @@ class Mesher(object):
         self.mesh_bound_scale = cfg['meshing']['mesh_bound_scale']
 
         self.submap_list = eslam.submap_list
-        self.bound = self.get_bound_from_submaps()
+        
         self.verbose = eslam.verbose
 
-        self.marching_cubes_bound = self.bound * self.scale
+        
 
         self.frame_reader = get_dataset(cfg, args, self.scale, device='cpu')
         self.n_img = len(self.frame_reader)
@@ -81,13 +81,15 @@ class Mesher(object):
         self.H, self.W, self.fx, self.fy, self.cx, self.cy = eslam.H, eslam.W, eslam.fx, eslam.fy, eslam.cx, eslam.cy
 
     def get_bound_from_submaps(self):
-        for idx, submap in self.submap_list:
+        boundaries = self.submap_list[0].boundary
+        for idx, submap in enumerate(self.submap_list):
             if idx == 0:
-                boundaries = submap.boundary
+                pass
             else:
                 boundaries = torch.cat([boundaries, submap.boundary], dim=0)
         boundary, _ = torch.min(boundaries, dim=0)
-        boundary = torch.cat([boundary, torch.max(boundaries, dim=0)[0]], dim=0)
+        boundary = torch.stack([boundary, torch.max(boundaries, dim=0)[0]], dim=0)
+
         return boundary
 
     def get_bound_from_frames(self, keyframe_dict, scale=1):
@@ -169,7 +171,7 @@ class Mesher(object):
         """
 
         p_split = torch.split(p, self.points_batch_size)
-        bound = self.bound
+        bound = self.get_bound_from_submaps()
         rets = []
         for pi in p_split:
             # mask for points out of bound
@@ -196,17 +198,17 @@ class Mesher(object):
         Returns:
             (dict): points coordinates and sampled coordinates for each axis.
         """
-        bound = self.marching_cubes_bound
-
+        bound = self.get_bound_from_submaps() * self.scale
+        bound = bound.cpu()
         padding = 0.05
 
-        nsteps_x = ((bound[1][0] - bound[0][0] + 2 * padding) / resolution).round().int().item()
+        nsteps_x = ((bound[1][0] - bound[0][0] + 2 * padding) / resolution).int().item()
         x = np.linspace(bound[0][0] - padding, bound[1][0] + padding, nsteps_x)
         
-        nsteps_y = ((bound[1][1] - bound[0][1] + 2 * padding) / resolution).round().int().item()
+        nsteps_y = ((bound[1][1] - bound[0][1] + 2 * padding) / resolution).int().item()
         y = np.linspace(bound[0][1] - padding, bound[1][1] + padding, nsteps_y)
         
-        nsteps_z = ((bound[1][2] - bound[0][2] + 2 * padding) / resolution).round().int().item()
+        nsteps_z = ((bound[1][2] - bound[0][2] + 2 * padding) / resolution).int().item()
         z = np.linspace(bound[0][2] - padding, bound[1][2] + padding, nsteps_z)
 
         x_t, y_t, z_t = torch.from_numpy(x).float(), torch.from_numpy(y).float(), torch.from_numpy(z).float()
