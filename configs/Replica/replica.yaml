@@ -11,7 +11,7 @@ tracking:
   iters: 4
 mapping:
   pixels: 4000
-  iters: 8
+  iters: 10
 cam:
   H: 680
   W: 1200

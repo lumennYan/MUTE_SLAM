@@ -5,15 +5,15 @@ import numpy as np
 class Encoder:
     def __init__(self, device, boundary, use_tcnn=False, encoding_type='hashgrid',
                  input_dim=2, num_levels=16, level_dim=2, base_resolution=16, align_corners=True):
-        self.boundary = boundary
+        self.boundary = boundary.to(device)
         self.edge_length = self.boundary[1] - self.boundary[0]
         self.device = device
         self.desired_resolution_xy = (torch.sqrt(self.edge_length[0] * self.edge_length[1]) * 100).int().item()
         self.desired_resolution_xz = (torch.sqrt(self.edge_length[0] * self.edge_length[2]) * 100).int().item()
         self.desired_resolution_yz = (torch.sqrt(self.edge_length[1] * self.edge_length[2]) * 100).int().item()
-        self.log2_hashmap_size_xy = int(np.log2(self.desired_resolution_xy ** 2)) - 1
-        self.log2_hashmap_size_xz = int(np.log2(self.desired_resolution_xz ** 2)) - 1
-        self.log2_hashmap_size_yz = int(np.log2(self.desired_resolution_yz ** 2)) - 1
+        self.log2_hashmap_size_xy = int(np.log2(self.desired_resolution_xy ** 2))
+        self.log2_hashmap_size_xz = int(np.log2(self.desired_resolution_xz ** 2))
+        self.log2_hashmap_size_yz = int(np.log2(self.desired_resolution_yz ** 2))
 
         if use_tcnn:
             import tinycudann as tcnn
@@ -53,6 +53,12 @@ class Encoder:
 
         for planes in [self.planes_xy, self.planes_xz, self.planes_yz]:
             planes = planes.to(self.device)
+            planes.share_memory()
+
+    def to_device(self, device):
+        self.boundary = self.boundary.to(device)
+        for planes in [self.planes_xy, self.planes_xz, self.planes_yz]:
+            planes = planes.to(device)
             planes.share_memory()
 
 

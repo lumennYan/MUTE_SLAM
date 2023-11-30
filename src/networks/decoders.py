@@ -89,6 +89,7 @@ class Decoders(nn.Module):
         indices_list = []
         pre_mask = torch.zeros(pts.shape[0], dtype=torch.bool, device=self.device)
         for submap in submap_list:
+            submap.to_device(self.device)
             pts_mask = torch.bitwise_and((pts[..., :] > submap.boundary[0]).all(dim=-1),
                                          (pts[..., :] < submap.boundary[1]).all(dim=-1))
             pts_mask = torch.bitwise_and(pts_mask, torch.bitwise_xor(pre_mask, pts_mask))
@@ -104,6 +105,38 @@ class Decoders(nn.Module):
             feat_all.index_put_((indices,), feat)
 
         return feat_all
+
+    def get_feature_from_points_for_mesher(self, pts, submap_list):
+        """
+        Get features from inputting points
+        Args:
+            pts (tensor, (N,3)): normalized 3D coordinates
+            submap_list (List): all submaps
+        Returns:
+            features (tensor)
+        """
+        with torch.no_grad():
+            index = torch.linspace(0, pts.shape[0]-1, pts.shape[0], dtype=torch.long)
+            feat_list = []
+            indices_list = []
+            pre_mask = torch.zeros(pts.shape[0], dtype=torch.bool, device=self.device)
+            for submap in submap_list:
+                submap.to_device(self.device)
+                pts_mask = torch.bitwise_and((pts[..., :] > submap.boundary[0]).all(dim=-1),
+                                            (pts[..., :] < submap.boundary[1]).all(dim=-1))
+                pts_mask = torch.bitwise_and(pts_mask, torch.bitwise_xor(pre_mask, pts_mask))
+                pre_mask = pts_mask
+                indices_list.append(index[pts_mask])
+                if self.use_tcnn:
+                    p_nor = normalize_3d_coordinate_to_unit(pts[pts_mask], submap.boundary)
+                else:
+                    p_nor = normalize_3d_coordinate(pts[pts_mask], submap.boundary)
+                feat_list.append(self.sample_plane_feature(p_nor, submap.planes_xy, submap.planes_xz, submap.planes_yz))
+            feat_all = torch.full((pts.shape[0], feat_list[0].shape[1]), float('nan'), device=self.device)
+            for feat, indices in zip(feat_list, indices_list):
+                feat_all.index_put_((indices,), feat)
+            out_bound_indices = index[torch.isnan(feat_all).any(dim=-1)]
+        return feat_all, out_bound_indices
 
     def get_raw_sdf(self, feat):
         """
@@ -137,7 +170,29 @@ class Decoders(nn.Module):
 
         return rgb
 
-    #def forward(self, p, all_planes):
+    def get_raw_for_mesher(self, p, submap_list):
+        """
+        Forward pass
+        Args:
+            p (tensor): 3D coordinates
+            submap_list (List): all submaps
+        Returns:
+            raw (tensor): raw SDF and RGB
+        """
+        p_shape = p.shape
+        p = p.reshape(-1, 3)
+        with torch.no_grad():
+            features, out_bound_indices = self.get_feature_from_points_for_mesher(p, submap_list)
+
+            sdf = self.get_raw_sdf(features).detach()
+            sdf.index_put_((out_bound_indices,), torch.tensor([-1.], device=self.device))
+            rgb = self.get_raw_rgb(features).detach()
+
+            raw = torch.cat([rgb, sdf.unsqueeze(-1)], dim=-1)
+            raw = raw.reshape(*p_shape[:-1], -1)
+
+        return raw
+
     def forward(self, p, submap_list):
         """
         Forward pass

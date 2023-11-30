@@ -16,7 +16,7 @@ from src.utils.Mesher import Mesher
 from src.utils.Renderer import Renderer
 from .encoding import get_encoder
 
-torch.multiprocessing.set_sharing_strategy('file_system')
+mp.set_sharing_strategy('file_system')
 
 
 class ESLAM():
@@ -59,7 +59,8 @@ class ESLAM():
 
         #self.load_bound(cfg)
         #self.submap_size = cfg['mapping']['submap_size']
-        self.submap_list = []
+
+        self.submap_list = mp.Manager().list()
 
         self.init_planes(cfg)
 
@@ -86,13 +87,6 @@ class ESLAM():
         self.mapping_idx.share_memory_()
         self.mapping_cnt = torch.zeros((1)).int()  # counter for mapping
         self.mapping_cnt.share_memory_()
-
-        ## Moving feature planes and decoders to the processing device
-        '''
-        for shared_planes in [self.shared_planes_xy, self.shared_planes_xz, self.shared_planes_yz]:
-            shared_planes = shared_planes.to(self.device)
-            shared_planes.share_memory()
-        '''
 
         self.shared_decoders = self.shared_decoders.to(self.device)
         self.shared_decoders.share_memory()
@@ -141,26 +135,6 @@ class ESLAM():
             self.cx -= self.cfg['cam']['crop_edge']
             self.cy -= self.cfg['cam']['crop_edge']
 
-    '''
-    def load_bound(self, cfg):
-        """
-        Pass the scene bound parameters to different decoders and self.
-
-        Args:
-            cfg (dict): parsed config dict.
-        """
-
-        # scale the bound if there is a global scaling factor
-        self.bound = torch.from_numpy(np.array(cfg['mapping']['bound'])*self.scale).float()
-
-
-        #bound_dividable = 0.02
-        # enlarge the bound a bit to allow it dividable by bound_dividable
-        #self.bound[:, 1] = (((self.bound[:, 1]-self.bound[:, 0]) /
-                            #bound_dividable).int()+1)*bound_dividable+self.bound[:, 0]
-
-        self.shared_decoders.bound = self.bound
-    '''
     def init_planes(self, cfg):
         """
         Initialize the feature planes.
@@ -173,9 +147,7 @@ class ESLAM():
 
         self.encoding_type = cfg['encoding']['type']
         self.encoding_levels = cfg['encoding']['n_levels']
-        #self.desired_resolution = cfg['encoding']['desired_resolution']
         self.base_resolution = cfg['encoding']['base_resolution']
-        #self.log2_hashmap_size = cfg['encoding']['log2_hashmap_size']
         self.per_level_feature_dim = cfg['encoding']['feature_dim']
 
         '''

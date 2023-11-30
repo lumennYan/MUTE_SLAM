@@ -13,7 +13,7 @@ mapping:
   every_frame: 2
   keyframe_every: 2
   pixels: 4000
-  iters: 10
+  iters: 20
 cam:  #NOTE: intrinsic is different per scene in TUM
   H: 480
   W: 640

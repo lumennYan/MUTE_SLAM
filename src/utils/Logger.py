@@ -65,5 +65,6 @@ class Logger(object):
             'idx': idx,
         }, path, _use_new_zipfile_serialization=False)
 
+
         if self.verbose:
             print('Saved checkpoints at', path)

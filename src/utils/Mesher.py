@@ -180,7 +180,7 @@ class Mesher(object):
             mask_z = (pi[:, 2] < bound[1][2]) & (pi[:, 2] > bound[0][2])
             mask = mask_x & mask_y & mask_z
 
-            ret = decoders(pi, submap_list)
+            ret = decoders.get_raw_for_mesher(pi, submap_list)
 
             ret[~mask, -1] = -1
             rets.append(ret)
@@ -235,10 +235,8 @@ class Mesher(object):
         with torch.no_grad():
             print('reach getmesh')
             grid = self.get_grid_uniform(self.resolution)
-            print('finish get_grid_uniform')
             points = grid['grid_points']
             mesh_bound = self.get_bound_from_frames(keyframe_dict, self.scale)
-            print('finish get_bound_from_frames')
             z = []
             mask = []
             for i, pnts in enumerate(torch.split(points, self.points_batch_size, dim=0)):

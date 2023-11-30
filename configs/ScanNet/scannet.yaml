@@ -3,15 +3,15 @@ meshing:
   resolution: 0.02 #cm # Increase this number to speed up meshing algorithm
   eval_rec: False
 tracking:
-  ignore_edge_W: 75
-  ignore_edge_H: 75
+  ignore_edge_W: 0
+  ignore_edge_H: 0
   lr_T: 0.0005
   lr_R: 0.0025
   pixels: 2000
-  iters: 30
+  iters: 5
 mapping:
   pixels: 4000
-  iters: 30
+  iters: 20
 cam: 
   H: 480 
   W: 640
@@ -22,6 +22,6 @@ cam:
   png_depth_scale: 1000. #for depth image in png format
   crop_edge: 10
 rendering:
-  n_stratified: 48
+  n_stratified: 32
   n_importance: 8
   learnable_beta: True

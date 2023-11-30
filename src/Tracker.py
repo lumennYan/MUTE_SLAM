@@ -26,7 +26,6 @@ class Tracker(object):
         self.scale = cfg['scale']
 
         self.idx = eslam.idx
-        #self.bound = eslam.bound
         self.mesher = eslam.mesher
         self.output = eslam.output
         self.verbose = eslam.verbose
@@ -163,6 +162,9 @@ class Tracker(object):
         #print('depth', depth)
         #print('color', color)
         ## Filtering the rays for which the rendered depth error is greater than 10 times of the median depth error
+        depth_mask = (batch_gt_depth > 0)
+        batch_gt_depth = batch_gt_depth[depth_mask]
+        batch_gt_color = batch_gt_color[depth_mask]
         depth_error = (batch_gt_depth - depth.detach()).abs()
         error_median = depth_error.median()
         depth_mask = (depth_error < 10 * error_median)
@@ -215,7 +217,6 @@ class Tracker(object):
                     time.sleep(0.001)
                 pre_c2w = self.estimate_c2w_list[idx - 1].unsqueeze(0).to(device)
 
-            #self.update_params_from_mapping()
 
             if self.verbose:
                 print(Fore.MAGENTA)
@@ -225,7 +226,7 @@ class Tracker(object):
             if idx == 0 or self.gt_camera:
                 c2w = gt_c2w
                 if not self.no_vis_on_first_frame:
-                    self.visualizer.save_imgs(idx, 0, gt_depth, gt_color, c2w.squeeze(), all_planes, self.decoders)
+                    self.visualizer.save_imgs(idx, 0, gt_depth, gt_color, c2w.squeeze(), self.submap_list, self.decoders)
 
             else:
                 if self.const_speed_assumption and idx - 2 >= 0:
@@ -236,7 +237,6 @@ class Tracker(object):
                 else:
                     ## Initialize with the last known pose
                     cam_pose = matrix_to_cam_pose(pre_c2w)
-
                 T = torch.nn.Parameter(cam_pose[:, -3:].clone())
                 R = torch.nn.Parameter(cam_pose[:,:4].clone())
                 cam_para_list_T = [T]
@@ -248,8 +248,7 @@ class Tracker(object):
                 for cam_iter in range(self.num_cam_iters):
                     cam_pose = torch.cat([R, T], -1)
 
-                    self.visualizer.save_imgs(idx, cam_iter, gt_depth, gt_color, cam_pose, all_planes, self.decoders)
-
+                    self.visualizer.save_imgs(idx, cam_iter, gt_depth, gt_color, cam_pose, self.submap_list, self.decoders)
                     loss = self.optimize_tracking(cam_pose, gt_color, gt_depth, self.tracking_pixels, optimizer_camera)
                     if loss < current_min_loss:
                         current_min_loss = loss
