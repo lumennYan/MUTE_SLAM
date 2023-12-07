@@ -6,7 +6,7 @@ keyframe_device: "cpu"
 encoding:
   tcnn: False
   type: HashGrid
-  n_levels: 8
+  n_levels: 16
   desired_resolution: 512
   base_resolution: 16
   log2_hashmap_size: 17

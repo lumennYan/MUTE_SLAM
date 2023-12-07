@@ -7,7 +7,7 @@ import time
 
 from colorama import Fore, Style
 
-from .encoding import Encoder
+from .encoding import SubMap
 from src.common import (get_samples, random_select, matrix_to_cam_pose, cam_pose_to_matrix, get_points, get_sample_points)
 from src.utils.datasets import get_dataset, SeqSampler
 from src.utils.Frame_Visualizer import Frame_Visualizer
@@ -29,7 +29,6 @@ class Mapper(object):
 
         self.idx = eslam.idx
         self.truncation = eslam.truncation
-        #self.bound = eslam.bound
         self.logger = eslam.logger
         self.mesher = eslam.mesher
         self.output = eslam.output
@@ -39,9 +38,9 @@ class Mapper(object):
         self.mapping_cnt = eslam.mapping_cnt
         self.decoders = eslam.shared_decoders
 
-
-        self.submap_list = eslam.submap_list
-        self.submap_list_on_cuda = []
+        self.submap_dict_list = eslam.submap_dict_list
+        self.submap_bound_list = eslam.submap_bound_list
+        self.submap_list = []
 
         self.encoding_type = eslam.encoding_type
         self.encoding_levels = eslam.encoding_levels
@@ -51,7 +50,6 @@ class Mapper(object):
         #self.planes_xy = eslam.shared_planes_xy
         #self.planes_xz = eslam.shared_planes_xz
         #self.planes_yz = eslam.shared_planes_yz
-
 
         self.estimate_c2w_list = eslam.estimate_c2w_list
         self.mapping_first_frame = eslam.mapping_first_frame
@@ -107,7 +105,7 @@ class Mapper(object):
         """
 
         front_mask = torch.where(z_vals < (gt_depth[:, None] - self.truncation),
-                                torch.ones_like(z_vals), torch.zeros_like(z_vals)).bool()
+                                 torch.ones_like(z_vals), torch.zeros_like(z_vals)).bool()
 
         back_mask = torch.where(z_vals > (gt_depth[:, None] + self.truncation),
                                 torch.ones_like(z_vals), torch.zeros_like(z_vals)).bool()
@@ -238,9 +236,10 @@ class Mapper(object):
         planes_para = []
 
         for submap in self.submap_list:
-            submap.to_device(self.device)
-            for plane in [submap.planes_xy, submap.planes_xz, submap.planes_yz]:
-                planes_para.append(*plane.parameters())
+            planes_para.append(*submap.planes_xy.parameters())
+            planes_para.append(*submap.planes_xz.parameters())
+            planes_para.append(*submap.planes_yz.parameters())
+
 
         #for c_plane in [self.c_planes_xy, self.c_planes_xz, self.c_planes_yz]:
             #c_planes_para.append(*c_plane.parameters())
@@ -407,22 +406,24 @@ class Mapper(object):
                 pts = torch.cat([pts[dis_mask], cur_c2w[None, :3, -1]], dim=0)
                 p_shape = pts.shape
                 for submap in self.submap_list:
-                    submap.to_device(self.device)
                     pts_mask = torch.bitwise_and((pts > submap.boundary[0]).all(-1),
                                                  (pts < submap.boundary[1]).all(dim=-1))
                     pts = pts[~pts_mask]
                 frame_after_create_keyframe += 1
-                if pts.shape[0] > 20:
+                if pts.shape[0] > 50:
                     pts_max, _ = torch.max(pts, dim=0)
                     pts_min, _ = torch.min(pts, dim=0)
-                    boundary = torch.stack([pts_min-1, pts_max+1], dim=0)
-                    self.submap_list.append(Encoder(device='cpu', boundary=boundary, use_tcnn=self.use_tcnn,
+                    boundary = torch.stack([pts_min-0.5, pts_max+0.5], dim=0)
+                    cur_submap = SubMap(device=self.device, boundary=boundary, use_tcnn=self.use_tcnn,
                                                     encoding_type=self.encoding_type,
                                                     input_dim=2,
                                                     num_levels=self.encoding_levels,
                                                     level_dim=self.per_level_feature_dim,
-                                                    base_resolution=self.base_resolution))
-
+                                                    base_resolution=self.base_resolution)
+                    self.submap_list.append(cur_submap)
+                    state_dict_cpu = {key: value.to('cpu') for key, value in self.submap_list[-1].state_dict().items()}
+                    self.submap_dict_list.append(state_dict_cpu)
+                    self.submap_bound_list.append(boundary.to('cpu'))
                     self.keyframe_list.append(idx)
                     self.keyframe_dict.append({'gt_c2w': gt_c2w, 'idx': idx, 'color': gt_color.to(self.keyframe_device),
                                                'depth': gt_depth.to(self.keyframe_device), 'est_c2w': cur_c2w.clone()})
@@ -431,7 +432,7 @@ class Mapper(object):
                 lr_factor = cfg['mapping']['lr_first_factor']
                 iters = cfg['mapping']['iters_first']
 
-                ##compute the boundary of the first sub_map
+                #compute the boundary of the first sub_map
                 #pts = get_points(self.H, self.W, self.fx, self.fy, self.cx, self.cy, cur_c2w, depth_mask, gt_depth, self.device)
                 pts = get_sample_points(self.H, self.W, self.fx, self.fy, self.cx, self.cy, cur_c2w, 180,
                                         gt_depth, self.device)
@@ -442,27 +443,26 @@ class Mapper(object):
                 pts_max, _ = torch.max(pts, dim=0)
                 pts_min, _ = torch.min(pts, dim=0)
                 boundary = torch.stack([pts_min-1, pts_max+1], dim=0)
-                self.submap_list.append(Encoder(device='cpu', boundary=boundary, use_tcnn=self.use_tcnn,
+                self.submap_list.append(SubMap(device=self.device, boundary=boundary, use_tcnn=self.use_tcnn,
                                                 encoding_type=self.encoding_type,
                                                 input_dim=2,
                                                 num_levels=self.encoding_levels,
                                                 level_dim=self.per_level_feature_dim,
                                                 base_resolution=self.base_resolution))
+                state_dict_cpu = {key: value.to('cpu') for key, value in self.submap_list[-1].state_dict().items()}
+                self.submap_dict_list.append(state_dict_cpu)
+                self.submap_bound_list.append(boundary.to('cpu'))
                 self.keyframe_list.append(idx)
                 self.keyframe_dict.append({'gt_c2w': gt_c2w, 'idx': idx, 'color': gt_color.to(self.keyframe_device),
                                            'depth': gt_depth.to(self.keyframe_device), 'est_c2w': cur_c2w.clone()})
 
-
-            ## Deciding if camera poses should be jointly optimized
+            # Deciding if camera poses should be jointly optimized
             self.joint_opt = (len(self.keyframe_list) > 4) and cfg['mapping']['joint_opt']
-            print(self.submap_list)
             cur_c2w = self.optimize_mapping(iters, lr_factor, idx, gt_color, gt_depth, gt_c2w,
                                             self.keyframe_dict, self.keyframe_list, cur_c2w)
-
             if self.joint_opt:
                 self.estimate_c2w_list[idx] = cur_c2w
 
-            print(frame_after_create_keyframe)
             # add new frame to keyframe set
             if frame_after_create_keyframe == self.keyframe_every:
                 self.keyframe_list.append(idx)
@@ -470,12 +470,14 @@ class Mapper(object):
                                            'depth': gt_depth.to(self.keyframe_device), 'est_c2w': cur_c2w.clone()})
                 frame_after_create_keyframe = 0
 
-
             init_phase = False
             self.mapping_first_frame[0] = 1     # mapping of first frame is done, can begin tracking
 
             if ((not (idx == 0 and self.no_log_on_first_frame)) and idx % self.ckpt_freq == 0) or idx == self.n_img-1:
                 self.logger.log(idx, self.keyframe_list)
+
+            for i, submap in enumerate(self.submap_list):
+                self.submap_dict_list[i] = {key: value.to('cpu') for key, value in submap.state_dict().items()}
 
             self.mapping_idx[0] = idx
             self.mapping_cnt[0] += 1
@@ -486,6 +488,9 @@ class Mapper(object):
                 cull_mesh(mesh_out_file, self.cfg, self.args, self.device, estimate_c2w_list=self.estimate_c2w_list[:idx+1])
 
             if idx == self.n_img-1:
+                for i, submap in enumerate(self.submap_list):
+                    print(submap)
+                    print(self.submap_bound_list[i])
                 if self.eval_rec:
                     mesh_out_file = f'{self.output}/mesh/final_mesh_eval_rec.ply'
                 else:

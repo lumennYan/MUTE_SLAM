@@ -10,6 +10,7 @@ from tqdm import tqdm
 from src.common import (matrix_to_cam_pose, cam_pose_to_matrix, get_samples)
 from src.utils.datasets import get_dataset
 from src.utils.Frame_Visualizer import Frame_Visualizer
+from .encoding import SubMap
 
 class Tracker(object):
     """
@@ -37,7 +38,15 @@ class Tracker(object):
         self.estimate_c2w_list = eslam.estimate_c2w_list
         self.truncation = eslam.truncation
 
-        self.submap_list = eslam.submap_list
+        self.submap_dict_list = eslam.submap_dict_list
+        self.submap_list = []
+        self.submap_bound_list = eslam.submap_bound_list
+
+        self.encoding_type = eslam.encoding_type
+        self.encoding_levels = eslam.encoding_levels
+        self.base_resolution = eslam.base_resolution
+        self.per_level_feature_dim = eslam.per_level_feature_dim
+        self.use_tcnn = eslam.use_tcnn
         #self.shared_planes_xy = eslam.shared_planes_xy
         #self.shared_planes_xz = eslam.shared_planes_xz
         #self.shared_planes_yz = eslam.shared_planes_yz
@@ -77,6 +86,19 @@ class Tracker(object):
         self.H, self.W, self.fx, self.fy, self.cx, self.cy = eslam.H, eslam.W, eslam.fx, eslam.fy, eslam.cx, eslam.cy
         self.decoders = self.shared_decoders
 
+    def get_map_from_mapper(self):
+        for i in range(len(self.submap_list)):
+            self.submap_list[i].load_state_dict(self.submap_dict_list[i])
+
+        while len(self.submap_list) < len(self.submap_dict_list):
+            self.submap_list.append(SubMap(device=self.device, boundary=self.submap_bound_list[len(self.submap_list)],
+                                           use_tcnn=self.use_tcnn,
+                                           encoding_type=self.encoding_type,
+                                           input_dim=2,
+                                           num_levels=self.encoding_levels,
+                                           level_dim=self.per_level_feature_dim,
+                                           base_resolution=self.base_resolution))
+            self.submap_list[-1].load_state_dict(self.submap_dict_list[len(self.submap_list)-1])
 
     def sdf_losses(self, sdf, z_vals, gt_depth):
         """
@@ -155,7 +177,6 @@ class Tracker(object):
         batch_gt_depth = batch_gt_depth[inside_mask]
         batch_gt_color = batch_gt_color[inside_mask]
         '''
-
         #print('rays after', batch_rays_d)
         depth, color, sdf, z_vals = self.renderer.render_batch_ray(self.submap_list, self.decoders, batch_rays_d, batch_rays_o,
                                                                    self.device, self.truncation, gt_depth=batch_gt_depth)
@@ -217,6 +238,7 @@ class Tracker(object):
                     time.sleep(0.001)
                 pre_c2w = self.estimate_c2w_list[idx - 1].unsqueeze(0).to(device)
 
+            self.get_map_from_mapper()
 
             if self.verbose:
                 print(Fore.MAGENTA)
@@ -226,7 +248,7 @@ class Tracker(object):
             if idx == 0 or self.gt_camera:
                 c2w = gt_c2w
                 if not self.no_vis_on_first_frame:
-                    self.visualizer.save_imgs(idx, 0, gt_depth, gt_color, c2w.squeeze(), self.submap_list, self.decoders)
+                    self.visualizer.save_imgs(idx, 0, gt_depth, gt_color, c2w.squeeze(), self.maps, self.decoders)
 
             else:
                 if self.const_speed_assumption and idx - 2 >= 0:
@@ -249,6 +271,7 @@ class Tracker(object):
                     cam_pose = torch.cat([R, T], -1)
 
                     self.visualizer.save_imgs(idx, cam_iter, gt_depth, gt_color, cam_pose, self.submap_list, self.decoders)
+
                     loss = self.optimize_tracking(cam_pose, gt_color, gt_depth, self.tracking_pixels, optimizer_camera)
                     if loss < current_min_loss:
                         current_min_loss = loss

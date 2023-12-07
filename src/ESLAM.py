@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import torch.multiprocessing
 import torch.multiprocessing as mp
-
+from .encoding import Maps
 
 from src import config
 from src.Mapper import Mapper
@@ -14,7 +14,7 @@ from src.utils.datasets import get_dataset
 from src.utils.Logger import Logger
 from src.utils.Mesher import Mesher
 from src.utils.Renderer import Renderer
-from .encoding import get_encoder
+
 
 mp.set_sharing_strategy('file_system')
 
@@ -60,7 +60,8 @@ class ESLAM():
         #self.load_bound(cfg)
         #self.submap_size = cfg['mapping']['submap_size']
 
-        self.submap_list = mp.Manager().list()
+        self.submap_dict_list = mp.Manager().list()
+        self.submap_bound_list = mp.Manager().list()
 
         self.init_planes(cfg)
 
@@ -149,43 +150,6 @@ class ESLAM():
         self.encoding_levels = cfg['encoding']['n_levels']
         self.base_resolution = cfg['encoding']['base_resolution']
         self.per_level_feature_dim = cfg['encoding']['feature_dim']
-
-        '''
-        if self.use_tcnn:
-            import tinycudann as tcnn
-
-            self.per_level_scale = np.exp2(
-                np.log2(self.desired_resolution / self.base_resolution) / (self.encoding_levels - 1))
-            self.encoding_dict = dict(n_levels=self.encoding_levels, otype=self.encoding_type,
-                                      n_features_per_level=self.per_level_feature_dim,
-                                      log2_hashmap_size=self.log2_hashmap_size, base_resolution=self.base_resolution,
-                                      per_level_scale=self.per_level_scale)
-
-            planes_xy = tcnn.Encoding(n_input_dims=2, encoding_config=self.encoding_dict, dtype=torch.float32)
-            planes_xz = tcnn.Encoding(n_input_dims=2, encoding_config=self.encoding_dict, dtype=torch.float32)
-            planes_yz = tcnn.Encoding(n_input_dims=2, encoding_config=self.encoding_dict, dtype=torch.float32)
-
-        else:
-            planes_xy, _ = get_encoder(encoding=self.encoding_type, input_dim=2,
-                                       num_levels=self.encoding_levels,
-                                       level_dim=self.per_level_feature_dim,
-                                       base_resolution=self.base_resolution, log2_hashmap_size=self.log2_hashmap_size,
-                                       desired_resolution=self.desired_resolution)
-            planes_xz, _ = get_encoder(encoding=self.encoding_type, input_dim=2,
-                                       num_levels=self.encoding_levels,
-                                       level_dim=self.per_level_feature_dim,
-                                       base_resolution=self.base_resolution, log2_hashmap_size=self.log2_hashmap_size,
-                                       desired_resolution=self.desired_resolution)
-            planes_yz, _ = get_encoder(encoding=self.encoding_type, input_dim=2,
-                                       num_levels=self.encoding_levels,
-                                       level_dim=self.per_level_feature_dim,
-                                       base_resolution=self.base_resolution, log2_hashmap_size=self.log2_hashmap_size,
-                                       desired_resolution=self.desired_resolution)
-
-        self.shared_planes_xy = planes_xy
-        self.shared_planes_xz = planes_xz
-        self.shared_planes_yz = planes_yz
-        '''
 
     def tracking(self, rank):
         """

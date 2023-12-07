@@ -7,8 +7,8 @@ tracking:
   ignore_edge_H: 75
   lr_T: 0.002
   lr_R: 0.001
-  pixels: 2000
-  iters: 4
+  pixels: 1000
+  iters: 10
 mapping:
   pixels: 4000
   iters: 10

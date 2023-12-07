@@ -89,7 +89,6 @@ class Decoders(nn.Module):
         indices_list = []
         pre_mask = torch.zeros(pts.shape[0], dtype=torch.bool, device=self.device)
         for submap in submap_list:
-            submap.to_device(self.device)
             pts_mask = torch.bitwise_and((pts[..., :] > submap.boundary[0]).all(dim=-1),
                                          (pts[..., :] < submap.boundary[1]).all(dim=-1))
             pts_mask = torch.bitwise_and(pts_mask, torch.bitwise_xor(pre_mask, pts_mask))
@@ -100,7 +99,7 @@ class Decoders(nn.Module):
             else:
                 p_nor = normalize_3d_coordinate(pts[pts_mask], submap.boundary)
             feat_list.append(self.sample_plane_feature(p_nor, submap.planes_xy, submap.planes_xz, submap.planes_yz))
-        feat_all = torch.empty((pts.shape[0], feat_list[0].shape[1]), device=self.device)
+        feat_all = torch.zeros((pts.shape[0], feat_list[0].shape[1]), device=self.device)
         for feat, indices in zip(feat_list, indices_list):
             feat_all.index_put_((indices,), feat)
 
@@ -121,7 +120,6 @@ class Decoders(nn.Module):
             indices_list = []
             pre_mask = torch.zeros(pts.shape[0], dtype=torch.bool, device=self.device)
             for submap in submap_list:
-                submap.to_device(self.device)
                 pts_mask = torch.bitwise_and((pts[..., :] > submap.boundary[0]).all(dim=-1),
                                             (pts[..., :] < submap.boundary[1]).all(dim=-1))
                 pts_mask = torch.bitwise_and(pts_mask, torch.bitwise_xor(pre_mask, pts_mask))

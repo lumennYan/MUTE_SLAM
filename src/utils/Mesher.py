@@ -69,7 +69,6 @@ class Mesher(object):
         self.level_set = cfg['meshing']['level_set']
         self.mesh_bound_scale = cfg['meshing']['mesh_bound_scale']
 
-        self.submap_list = eslam.submap_list
         
         self.verbose = eslam.verbose
 
@@ -80,9 +79,9 @@ class Mesher(object):
 
         self.H, self.W, self.fx, self.fy, self.cx, self.cy = eslam.H, eslam.W, eslam.fx, eslam.fy, eslam.cx, eslam.cy
 
-    def get_bound_from_submaps(self):
-        boundaries = self.submap_list[0].boundary
-        for idx, submap in enumerate(self.submap_list):
+    def get_bound_from_submaps(self, submap_list):
+        boundaries = submap_list[0].boundary
+        for idx, submap in enumerate(submap_list):
             if idx == 0:
                 pass
             else:
@@ -171,7 +170,7 @@ class Mesher(object):
         """
 
         p_split = torch.split(p, self.points_batch_size)
-        bound = self.get_bound_from_submaps()
+        bound = self.get_bound_from_submaps(submap_list)
         rets = []
         for pi in p_split:
             # mask for points out of bound
@@ -188,7 +187,7 @@ class Mesher(object):
         ret = torch.cat(rets, dim=0)
         return ret
 
-    def get_grid_uniform(self, resolution):
+    def get_grid_uniform(self, resolution, submap_list):
         """
         Get query point coordinates for marching cubes.
 
@@ -198,7 +197,7 @@ class Mesher(object):
         Returns:
             (dict): points coordinates and sampled coordinates for each axis.
         """
-        bound = self.get_bound_from_submaps() * self.scale
+        bound = self.get_bound_from_submaps(submap_list) * self.scale
         bound = bound.cpu()
         padding = 0.05
 
@@ -234,7 +233,7 @@ class Mesher(object):
 
         with torch.no_grad():
             print('reach getmesh')
-            grid = self.get_grid_uniform(self.resolution)
+            grid = self.get_grid_uniform(self.resolution, submap_list)
             points = grid['grid_points']
             mesh_bound = self.get_bound_from_frames(keyframe_dict, self.scale)
             z = []
