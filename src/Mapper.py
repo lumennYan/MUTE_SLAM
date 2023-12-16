@@ -1,3 +1,5 @@
+import random
+
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -146,7 +148,7 @@ class Mapper(object):
 
         rays_o, rays_d, gt_depth, gt_color = get_samples(
             0, H, 0, W, num_rays, H, W, fx, fy, cx, cy,
-            c2w.unsqueeze(0), gt_depth.unsqueeze(0),gt_color.unsqueeze(0), device)
+            c2w.unsqueeze(0), gt_depth.unsqueeze(0), gt_color.unsqueeze(0), device)
 
         gt_depth = gt_depth.reshape(-1, 1)
         nonzero_depth = gt_depth[:, 0] > 0
@@ -213,7 +215,6 @@ class Mapper(object):
         H, W, fx, fy, cx, cy = self.H, self.W, self.fx, self.fy, self.cx, self.cy
         cfg = self.cfg
         device = self.device
-
         if len(keyframe_dict) == 0:
             optimize_frame = []
         else:
@@ -225,8 +226,12 @@ class Mapper(object):
         # add the last two keyframes and the current frame(use -1 to denote)
         if len(keyframe_list) > 1:
             optimize_frame = optimize_frame + [len(keyframe_list)-1] + [len(keyframe_list)-2]
-            optimize_frame = sorted(optimize_frame)
+        if len(keyframe_list) >= self.mapping_window_size and len(optimize_frame) < self.mapping_window_size-1:
+            remaining_frames = [frame for frame in list(range(1, len(keyframe_list))) if frame not in optimize_frame]
+            optimize_frame += random.sample(remaining_frames, self.mapping_window_size-1-len(optimize_frame))
+
         optimize_frame += [-1]  ## -1 represents the current frame
+        #print(optimize_frame)
 
         pixs_per_image = self.mapping_pixels//len(optimize_frame)
 
@@ -298,22 +303,6 @@ class Mapper(object):
             batch_rays_o, batch_rays_d, batch_gt_depth, batch_gt_color = get_samples(
                 0, H, 0, W, pixs_per_image, H, W, fx, fy, cx, cy, c2ws_, gt_depths, gt_colors, device)
 
-            '''
-            # should pre-filter those out of bounding box depth value
-            with torch.no_grad():
-                det_rays_o = batch_rays_o.clone().detach().unsqueeze(-1)
-                det_rays_d = batch_rays_d.clone().detach().unsqueeze(-1)
-                t = (self.bound.unsqueeze(0).to(
-                    device)-det_rays_o)/det_rays_d
-                t, _ = torch.min(torch.max(t, dim=2)[0], dim=1)
-                inside_mask = t >= batch_gt_depth
-            batch_rays_d = batch_rays_d[inside_mask]
-            batch_rays_o = batch_rays_o[inside_mask]
-            batch_gt_depth = batch_gt_depth[inside_mask]
-            batch_gt_color = batch_gt_color[inside_mask]
-            '''
-
-
             depth_mask = (batch_gt_depth > 0)
 
             depth, color, sdf, z_vals = self.renderer.render_batch_ray(self.submap_list, self.decoders, batch_rays_d,
@@ -368,7 +357,7 @@ class Mapper(object):
 
         init_phase = True
         prev_idx = -1
-        frame_after_create_keyframe = 0
+        #frame_after_create_keyframe = 0
 
         while True:
             while True:
@@ -409,11 +398,11 @@ class Mapper(object):
                     pts_mask = torch.bitwise_and((pts > submap.boundary[0]).all(-1),
                                                  (pts < submap.boundary[1]).all(dim=-1))
                     pts = pts[~pts_mask]
-                frame_after_create_keyframe += 1
-                if pts.shape[0] > 50:
+                frame_after_create_keyframe = 1
+                if (pts.shape[0] > 50):
                     pts_max, _ = torch.max(pts, dim=0)
                     pts_min, _ = torch.min(pts, dim=0)
-                    boundary = torch.stack([pts_min-0.5, pts_max+0.5], dim=0)
+                    boundary = torch.stack([pts_min-1.5, pts_max+1.5], dim=0)
                     cur_submap = SubMap(device=self.device, boundary=boundary, use_tcnn=self.use_tcnn,
                                                     encoding_type=self.encoding_type,
                                                     input_dim=2,
@@ -442,7 +431,7 @@ class Mapper(object):
                 pts = torch.cat([pts[dis_mask], cur_c2w[None, :3, -1]], dim=0)
                 pts_max, _ = torch.max(pts, dim=0)
                 pts_min, _ = torch.min(pts, dim=0)
-                boundary = torch.stack([pts_min-1, pts_max+1], dim=0)
+                boundary = torch.stack([pts_min-1.5, pts_max+1.5], dim=0)
                 self.submap_list.append(SubMap(device=self.device, boundary=boundary, use_tcnn=self.use_tcnn,
                                                 encoding_type=self.encoding_type,
                                                 input_dim=2,
@@ -455,6 +444,7 @@ class Mapper(object):
                 self.keyframe_list.append(idx)
                 self.keyframe_dict.append({'gt_c2w': gt_c2w, 'idx': idx, 'color': gt_color.to(self.keyframe_device),
                                            'depth': gt_depth.to(self.keyframe_device), 'est_c2w': cur_c2w.clone()})
+                frame_after_create_keyframe = 0
 
             # Deciding if camera poses should be jointly optimized
             self.joint_opt = (len(self.keyframe_list) > 4) and cfg['mapping']['joint_opt']
@@ -464,11 +454,11 @@ class Mapper(object):
                 self.estimate_c2w_list[idx] = cur_c2w
 
             # add new frame to keyframe set
-            if frame_after_create_keyframe == self.keyframe_every:
+            if frame_after_create_keyframe != 0 and idx % self.keyframe_every == 0:
                 self.keyframe_list.append(idx)
                 self.keyframe_dict.append({'gt_c2w': gt_c2w, 'idx': idx, 'color': gt_color.to(self.keyframe_device),
                                            'depth': gt_depth.to(self.keyframe_device), 'est_c2w': cur_c2w.clone()})
-                frame_after_create_keyframe = 0
+
 
             init_phase = False
             self.mapping_first_frame[0] = 1     # mapping of first frame is done, can begin tracking
@@ -490,16 +480,12 @@ class Mapper(object):
             if idx == self.n_img-1:
                 for i, submap in enumerate(self.submap_list):
                     print(submap)
-                    print(self.submap_bound_list[i])
                 if self.eval_rec:
                     mesh_out_file = f'{self.output}/mesh/final_mesh_eval_rec.ply'
                 else:
                     mesh_out_file = f'{self.output}/mesh/final_mesh.ply'
-                print('here')
                 self.mesher.get_mesh(mesh_out_file, self.submap_list, self.decoders, self.keyframe_dict, self.device)
-                print('get_mesh')
                 cull_mesh(mesh_out_file, self.cfg, self.args, self.device, estimate_c2w_list=self.estimate_c2w_list)
-                print('done')
                 break
 
             if idx == self.n_img-1:

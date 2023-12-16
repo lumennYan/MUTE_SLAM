@@ -7,13 +7,13 @@ tracking:
   ignore_edge_H: 20
   lr_T: 0.01
   lr_R: 0.002
-  pixels: 2000
-  iters: 5
+  pixels: 2048
+  iters: 15
 mapping:
   every_frame: 2
-  keyframe_every: 2
-  pixels: 4000
-  iters: 20
+  keyframe_every: 1
+  pixels: 3200
+  iters: 15
 cam:  #NOTE: intrinsic is different per scene in TUM
   H: 480
   W: 640
@@ -24,6 +24,6 @@ cam:  #NOTE: intrinsic is different per scene in TUM
   png_depth_scale: 5000.0
   crop_edge: 0
 rendering:
-  n_stratified: 48
-  n_importance: 8
+  n_stratified: 32
+  n_importance: 12
   learnable_beta: False

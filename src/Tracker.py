@@ -12,6 +12,7 @@ from src.utils.datasets import get_dataset
 from src.utils.Frame_Visualizer import Frame_Visualizer
 from .encoding import SubMap
 
+
 class Tracker(object):
     """
     Tracking main class.
@@ -161,22 +162,6 @@ class Tracker(object):
                                                                                  batch_size, H, W, fx, fy, cx, cy, c2w,
                                                                                  gt_depth, gt_color, device)
 
-        # should pre-filter those out of bounding box depth value
-        '''
-        with torch.no_grad():
-            det_rays_o = batch_rays_o.clone().detach().unsqueeze(-1)  # (N, 3, 1)
-            det_rays_d = batch_rays_d.clone().detach().unsqueeze(-1)  # (N, 3, 1)
-            t = (self.bound.unsqueeze(0).to(
-                device) - det_rays_o) / det_rays_d
-            t, _ = torch.min(torch.max(t, dim=2)[0], dim=1)
-            inside_mask = t >= batch_gt_depth
-            inside_mask = inside_mask & (batch_gt_depth > 0)
-        
-        batch_rays_d = batch_rays_d[inside_mask]
-        batch_rays_o = batch_rays_o[inside_mask]
-        batch_gt_depth = batch_gt_depth[inside_mask]
-        batch_gt_color = batch_gt_color[inside_mask]
-        '''
         #print('rays after', batch_rays_d)
         depth, color, sdf, z_vals = self.renderer.render_batch_ray(self.submap_list, self.decoders, batch_rays_d, batch_rays_o,
                                                                    self.device, self.truncation, gt_depth=batch_gt_depth)
@@ -186,18 +171,26 @@ class Tracker(object):
         depth_mask = (batch_gt_depth > 0)
         batch_gt_depth = batch_gt_depth[depth_mask]
         batch_gt_color = batch_gt_color[depth_mask]
+
         depth_error = (batch_gt_depth - depth.detach()).abs()
-        error_median = depth_error.median()
-        depth_mask = (depth_error < 10 * error_median)
+        depth_error_median = depth_error.median()
+        depth_mask = (depth_error < 20 * depth_error_median)
+
+        #color_error = (batch_gt_color - color.detach()).abs()
+        #color_error_median = color_error.median()
+        #color_mask = (color_error < 20 * color_error_median).all(dim=-1)
+
+
+        mask = depth_mask
 
         ## SDF losses
-        loss = self.sdf_losses(sdf[depth_mask], z_vals[depth_mask], batch_gt_depth[depth_mask])
+        loss = self.sdf_losses(sdf[mask], z_vals[mask], batch_gt_depth[mask])
 
         ## Color Loss
-        loss = loss + self.w_color * torch.square(batch_gt_color - color)[depth_mask].mean()
+        loss = loss + self.w_color * torch.square(batch_gt_color[mask] - color[mask]).mean()
 
         ### Depth loss
-        loss = loss + self.w_depth * torch.square(batch_gt_depth[depth_mask] - depth[depth_mask]).mean()
+        loss = loss + self.w_depth * torch.square(batch_gt_depth[mask] - depth[mask]).mean()
         #print('tracking_loss', loss)
         optimizer.zero_grad()
         loss.backward()

@@ -284,7 +284,6 @@ class Mesher(object):
                 z = []
                 for i, pnts in enumerate(torch.split(points, self.points_batch_size, dim=0)):
                     z_color = self.eval_points(pnts.to(device).float(), submap_list, decoders).cpu()[..., :3]
-                    #z_color = self.eval_points(pnts.float(), all_planes, decoders)[..., :3]
                     z.append(z_color)
                 z = torch.cat(z, dim=0)
                 vertex_colors = z.numpy()
