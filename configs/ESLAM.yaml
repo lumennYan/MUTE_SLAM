@@ -9,8 +9,7 @@ encoding:
   n_levels: 16
   desired_resolution: 512
   base_resolution: 16
-  log2_hashmap_size: 17
-  feature_dim: 4
+  feature_dim: 2
 meshing:
   level_set: 0
   resolution: 0.001 #cm # Increase this number to speed up meshing algorithm
@@ -34,6 +33,7 @@ tracking:
   w_depth: 1
   w_color: 5
 mapping:
+  submap_expand_size: 1.5
   every_frame: 4
   joint_opt: True
   joint_opt_cam_lr: 0.001

@@ -53,26 +53,10 @@ class Decoders(nn.Module):
             feat (tensor): sampled features
         """
 
-        '''
-        vgrid = p_nor[None, :, None]
-
-        feat = []
-        for i in range(len(planes_xy)):
-            xy = F.grid_sample(planes_xy[i], vgrid[..., [0, 1]], padding_mode='border', align_corners=True, mode='bilinear').squeeze().transpose(0, 1)
-            xz = F.grid_sample(planes_xz[i], vgrid[..., [0, 2]], padding_mode='border', align_corners=True, mode='bilinear').squeeze().transpose(0, 1)
-            yz = F.grid_sample(planes_yz[i], vgrid[..., [1, 2]], padding_mode='border', align_corners=True, mode='bilinear').squeeze().transpose(0, 1)
-            feat.append(xy + xz + yz)
-        feat = torch.cat(feat, dim=-1)  # [N,64]
-        '''
-
         xy = planes_xy(p_nor[..., [0, 1]])
-        #xy = planes_xy(p_nor[..., 0])
         xz = planes_xz(p_nor[..., [0, 2]])
-        #xz = planes_xz(p_nor[..., 1])
         yz = planes_yz(p_nor[..., [1, 2]])
-        #yz = planes_yz(p_nor[..., 2])
         feat = xy + xz + yz  # [N, 32]
-        #feat = xy
         return feat
 
     def get_feature_from_points(self, pts, submap_list):
@@ -84,8 +68,9 @@ class Decoders(nn.Module):
         Returns:
             features (tensor)
         """
-        index = torch.linspace(0, pts.shape[0]-1, pts.shape[0], dtype=torch.long)
+        index = torch.linspace(0, pts.shape[0]-1, pts.shape[0], dtype=torch.long, device=self.device)
         feat_list = []
+        c_feat_list = []
         indices_list = []
         pre_mask = torch.zeros(pts.shape[0], dtype=torch.bool, device=self.device)
         for submap in submap_list:
@@ -99,11 +84,13 @@ class Decoders(nn.Module):
             else:
                 p_nor = normalize_3d_coordinate(pts[pts_mask], submap.boundary)
             feat_list.append(self.sample_plane_feature(p_nor, submap.planes_xy, submap.planes_xz, submap.planes_yz))
+            c_feat_list.append(self.sample_plane_feature(p_nor, submap.c_planes_xy, submap.c_planes_xz, submap.c_planes_yz))
         feat_all = torch.zeros((pts.shape[0], feat_list[0].shape[1]), device=self.device)
-        for feat, indices in zip(feat_list, indices_list):
+        c_feat_all = torch.zeros((pts.shape[0], c_feat_list[0].shape[1]), device=self.device)
+        for feat, c_feat, indices in zip(feat_list, c_feat_list, indices_list):
             feat_all.index_put_((indices,), feat)
-
-        return feat_all
+            c_feat_all.index_put_((indices,), c_feat)
+        return feat_all, c_feat_all
 
     def get_feature_from_points_for_mesher(self, pts, submap_list):
         """
@@ -115,8 +102,9 @@ class Decoders(nn.Module):
             features (tensor)
         """
         with torch.no_grad():
-            index = torch.linspace(0, pts.shape[0]-1, pts.shape[0], dtype=torch.long)
+            index = torch.linspace(0, pts.shape[0]-1, pts.shape[0], dtype=torch.long, device=self.device)
             feat_list = []
+            c_feat_list = []
             indices_list = []
             pre_mask = torch.zeros(pts.shape[0], dtype=torch.bool, device=self.device)
             for submap in submap_list:
@@ -130,11 +118,15 @@ class Decoders(nn.Module):
                 else:
                     p_nor = normalize_3d_coordinate(pts[pts_mask], submap.boundary)
                 feat_list.append(self.sample_plane_feature(p_nor, submap.planes_xy, submap.planes_xz, submap.planes_yz))
+                c_feat_list.append(
+                    self.sample_plane_feature(p_nor, submap.c_planes_xy, submap.c_planes_xz, submap.c_planes_yz))
             feat_all = torch.full((pts.shape[0], feat_list[0].shape[1]), float('nan'), device=self.device)
-            for feat, indices in zip(feat_list, indices_list):
+            c_feat_all = torch.full((pts.shape[0], c_feat_list[0].shape[1]), float('nan'), device=self.device)
+            for feat, c_feat, indices in zip(feat_list, c_feat_list, indices_list):
                 feat_all.index_put_((indices,), feat)
+                c_feat_all.index_put_((indices,), c_feat)
             out_bound_indices = index[torch.isnan(feat_all).any(dim=-1)]
-        return feat_all, out_bound_indices
+        return feat_all, c_feat_all, out_bound_indices
 
     def get_raw_sdf(self, feat):
         """
@@ -180,11 +172,11 @@ class Decoders(nn.Module):
         p_shape = p.shape
         p = p.reshape(-1, 3)
         with torch.no_grad():
-            features, out_bound_indices = self.get_feature_from_points_for_mesher(p, submap_list)
+            features, c_features, out_bound_indices = self.get_feature_from_points_for_mesher(p, submap_list)
 
             sdf = self.get_raw_sdf(features).detach()
             sdf.index_put_((out_bound_indices,), torch.tensor([-1.], device=self.device))
-            rgb = self.get_raw_rgb(features).detach()
+            rgb = self.get_raw_rgb(c_features).detach()
 
             raw = torch.cat([rgb, sdf.unsqueeze(-1)], dim=-1)
             raw = raw.reshape(*p_shape[:-1], -1)
@@ -202,10 +194,10 @@ class Decoders(nn.Module):
         """
         p_shape = p.shape
         p = p.reshape(-1, 3)
-        features = self.get_feature_from_points(p, submap_list)
+        features, c_features = self.get_feature_from_points(p, submap_list)
 
         sdf = self.get_raw_sdf(features)
-        rgb = self.get_raw_rgb(features)
+        rgb = self.get_raw_rgb(c_features)
 
         raw = torch.cat([rgb, sdf.unsqueeze(-1)], dim=-1)
         raw = raw.reshape(*p_shape[:-1], -1)

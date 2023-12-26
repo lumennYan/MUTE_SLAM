@@ -3,12 +3,6 @@ import torch.nn as nn
 import numpy as np
 
 
-class Maps(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.mapList = nn.ModuleList()
-
-
 class SubMap(nn.Module):
     def __init__(self, device, boundary, use_tcnn=False, encoding_type='hashgrid',
                  input_dim=2, num_levels=16, level_dim=2, base_resolution=16, align_corners=True):
@@ -19,17 +13,13 @@ class SubMap(nn.Module):
             self.desired_resolution_xy = (torch.pow(self.edge_length[0] * self.edge_length[1] * self.edge_length[2], 1/3) * 100).int().item()
             self.desired_resolution_xz = self.desired_resolution_xy
             self.desired_resolution_yz = self.desired_resolution_xy
-            #self.desired_resolution_xz = (torch.sqrt(self.edge_length[0] * self.edge_length[2]) * 100).int().item()
-            #self.desired_resolution_yz = (torch.sqrt(self.edge_length[1] * self.edge_length[2]) * 100).int().item()
             self.log2_hashmap_size_xy = int(np.log2(self.desired_resolution_xy ** 2))
-            self.log2_hashmap_size_xz = int(np.log2(self.desired_resolution_xz ** 2))
-            self.log2_hashmap_size_yz = int(np.log2(self.desired_resolution_yz ** 2))
+            self.log2_hashmap_size_xz = self.log2_hashmap_size_xy
+            self.log2_hashmap_size_yz = self.log2_hashmap_size_xy
             per_level_scale_xy = np.exp2(
                 np.log2(self.desired_resolution_xy / base_resolution) / (num_levels - 1))
-            per_level_scale_xz = np.exp2(
-                np.log2(self.desired_resolution_xz / base_resolution) / (num_levels - 1))
-            per_level_scale_yz = np.exp2(
-                np.log2(self.desired_resolution_yz / base_resolution) / (num_levels - 1))
+            per_level_scale_xz = per_level_scale_xy
+            per_level_scale_yz = per_level_scale_xy
         self.device = device
         if use_tcnn:
             import tinycudann as tcnn
@@ -48,6 +38,9 @@ class SubMap(nn.Module):
             self.planes_xy = tcnn.Encoding(input_dim, encoding_config=self.encoding_dict_xy, dtype=torch.float32)
             self.planes_xz = tcnn.Encoding(input_dim, encoding_config=self.encoding_dict_xz, dtype=torch.float32)
             self.planes_yz = tcnn.Encoding(input_dim, encoding_config=self.encoding_dict_yz, dtype=torch.float32)
+            self.c_planes_xy = tcnn.Encoding(input_dim, encoding_config=self.encoding_dict_xy, dtype=torch.float32)
+            self.c_planes_xz = tcnn.Encoding(input_dim, encoding_config=self.encoding_dict_xz, dtype=torch.float32)
+            self.c_planes_yz = tcnn.Encoding(input_dim, encoding_config=self.encoding_dict_yz, dtype=torch.float32)
 
         else:
             self.planes_xy, _ = get_encoder(encoding_type, input_dim,
@@ -59,8 +52,17 @@ class SubMap(nn.Module):
             self.planes_yz, _ = get_encoder(encoding_type, input_dim,
                                             num_levels, level_dim, base_resolution, self.log2_hashmap_size_yz,
                                             self.desired_resolution_yz, align_corners)
+            self.c_planes_xy, _ = get_encoder(encoding_type, input_dim,
+                                            num_levels, level_dim, base_resolution, self.log2_hashmap_size_xy,
+                                            self.desired_resolution_xy, align_corners)
+            self.c_planes_xz, _ = get_encoder(encoding_type, input_dim,
+                                            num_levels, level_dim, base_resolution, self.log2_hashmap_size_xz,
+                                            self.desired_resolution_xz, align_corners)
+            self.c_planes_yz, _ = get_encoder(encoding_type, input_dim,
+                                            num_levels, level_dim, base_resolution, self.log2_hashmap_size_yz,
+                                            self.desired_resolution_yz, align_corners)
 
-        for planes in [self.planes_xy, self.planes_xz, self.planes_yz]:
+        for planes in [self.planes_xy, self.planes_xz, self.planes_yz, self.c_planes_xy, self.c_planes_xz, self.c_planes_yz]:
             planes = planes.to(self.device)
 
 

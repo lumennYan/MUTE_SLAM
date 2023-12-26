@@ -15,6 +15,7 @@ from src.utils.datasets import get_dataset, SeqSampler
 from src.utils.Frame_Visualizer import Frame_Visualizer
 from src.tools.cull_mesh import cull_mesh
 
+
 class Mapper(object):
     """
     Mapping main class.
@@ -49,9 +50,6 @@ class Mapper(object):
         self.base_resolution = eslam.base_resolution
         self.per_level_feature_dim = eslam.per_level_feature_dim
         self.use_tcnn = eslam.use_tcnn
-        #self.planes_xy = eslam.shared_planes_xy
-        #self.planes_xz = eslam.shared_planes_xz
-        #self.planes_yz = eslam.shared_planes_yz
 
         self.estimate_c2w_list = eslam.estimate_c2w_list
         self.mapping_first_frame = eslam.mapping_first_frame
@@ -78,6 +76,7 @@ class Mapper(object):
         self.no_log_on_first_frame = cfg['mapping']['no_log_on_first_frame']
         self.no_mesh_on_first_frame = cfg['mapping']['no_mesh_on_first_frame']
         self.keyframe_selection_method = cfg['mapping']['keyframe_selection_method']
+        self.submap_expand_size = cfg['mapping']['submap_expand_size']
 
         self.keyframe_dict = []
         self.keyframe_list = []
@@ -231,7 +230,6 @@ class Mapper(object):
             optimize_frame += random.sample(remaining_frames, self.mapping_window_size-1-len(optimize_frame))
 
         optimize_frame += [-1]  ## -1 represents the current frame
-        #print(optimize_frame)
 
         pixs_per_image = self.mapping_pixels//len(optimize_frame)
 
@@ -239,15 +237,14 @@ class Mapper(object):
         decoders_para_list += list(self.decoders.parameters())
 
         planes_para = []
-
+        c_planes_para = []
         for submap in self.submap_list:
             planes_para.append(*submap.planes_xy.parameters())
             planes_para.append(*submap.planes_xz.parameters())
             planes_para.append(*submap.planes_yz.parameters())
-
-
-        #for c_plane in [self.c_planes_xy, self.c_planes_xz, self.c_planes_yz]:
-            #c_planes_para.append(*c_plane.parameters())
+            c_planes_para.append(*submap.c_planes_xy.parameters())
+            c_planes_para.append(*submap.c_planes_xz.parameters())
+            c_planes_para.append(*submap.c_planes_yz.parameters())
 
         gt_depths = []
         gt_colors = []
@@ -274,25 +271,25 @@ class Mapper(object):
 
             optimizer = torch.optim.Adam([{'params': decoders_para_list, 'lr': 0},
                                           {'params': planes_para, 'lr': 0},
-                                          #{'params': c_planes_para, 'lr': 0},
+                                          {'params': c_planes_para, 'lr': 0},
                                           {'params': [cam_poses], 'lr': 0}])
 
         else:
             optimizer = torch.optim.Adam([{'params': decoders_para_list, 'lr': 0},
-                                          {'params': planes_para, 'lr': 0}])
-                                          #{'params': c_planes_para, 'lr': 0}])
+                                          {'params': planes_para, 'lr': 0},
+                                          {'params': c_planes_para, 'lr': 0}])
 
         optimizer.param_groups[0]['lr'] = cfg['mapping']['lr']['decoders_lr'] * lr_factor
         optimizer.param_groups[1]['lr'] = cfg['mapping']['lr']['planes_lr'] * lr_factor
-        #optimizer.param_groups[2]['lr'] = cfg['mapping']['lr']['c_planes_lr'] * lr_factor
+        optimizer.param_groups[2]['lr'] = cfg['mapping']['lr']['c_planes_lr'] * lr_factor
 
         if self.joint_opt:
-            #optimizer.param_groups[3]['lr'] = self.joint_opt_cam_lr
-            optimizer.param_groups[2]['lr'] = self.joint_opt_cam_lr
+            optimizer.param_groups[3]['lr'] = self.joint_opt_cam_lr
+            #optimizer.param_groups[2]['lr'] = self.joint_opt_cam_lr
 
         for joint_iter in range(iters):
-            #if (not (idx == 0 and self.no_vis_on_first_frame)):
-                #self.visualizer.save_imgs(idx, joint_iter, cur_gt_depth, cur_gt_color, cur_c2w, self.submap_list, self.decoders)
+            if (not (idx == 0 and self.no_vis_on_first_frame)):
+                self.visualizer.save_imgs(idx, joint_iter, cur_gt_depth, cur_gt_color, cur_c2w, self.submap_list, self.decoders)
 
             if self.joint_opt:
                 ## We fix the oldest c2w to avoid drifting
@@ -402,7 +399,7 @@ class Mapper(object):
                 if (pts.shape[0] > 50):
                     pts_max, _ = torch.max(pts, dim=0)
                     pts_min, _ = torch.min(pts, dim=0)
-                    boundary = torch.stack([pts_min-1.5, pts_max+1.5], dim=0)
+                    boundary = torch.stack([pts_min-self.submap_expand_size, pts_max+self.submap_expand_size], dim=0)
                     cur_submap = SubMap(device=self.device, boundary=boundary, use_tcnn=self.use_tcnn,
                                                     encoding_type=self.encoding_type,
                                                     input_dim=2,
@@ -421,7 +418,7 @@ class Mapper(object):
                 lr_factor = cfg['mapping']['lr_first_factor']
                 iters = cfg['mapping']['iters_first']
 
-                #compute the boundary of the first sub_map
+                ##compute the boundary of the first sub_map
                 #pts = get_points(self.H, self.W, self.fx, self.fy, self.cx, self.cy, cur_c2w, depth_mask, gt_depth, self.device)
                 pts = get_sample_points(self.H, self.W, self.fx, self.fy, self.cx, self.cy, cur_c2w, 180,
                                         gt_depth, self.device)
@@ -431,7 +428,7 @@ class Mapper(object):
                 pts = torch.cat([pts[dis_mask], cur_c2w[None, :3, -1]], dim=0)
                 pts_max, _ = torch.max(pts, dim=0)
                 pts_min, _ = torch.min(pts, dim=0)
-                boundary = torch.stack([pts_min-1.5, pts_max+1.5], dim=0)
+                boundary = torch.stack([pts_min-self.submap_expand_size, pts_max+self.submap_expand_size], dim=0)
                 self.submap_list.append(SubMap(device=self.device, boundary=boundary, use_tcnn=self.use_tcnn,
                                                 encoding_type=self.encoding_type,
                                                 input_dim=2,
