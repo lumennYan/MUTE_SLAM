@@ -7,13 +7,13 @@ tracking:
   ignore_edge_H: 75
   lr_T: 0.0005
   lr_R: 0.0025
-  pixels: 2048
+  pixels: 1000
   iters: 10
 mapping:
-  submap_expand_size: 1.5
-  pixels: 4000
+  pixels: 3200
   iters: 10
-  keyframe_every: 2
+  every_frame: 5
+  keyframe_every: 5
 cam: 
   H: 480 
   W: 640
@@ -24,6 +24,6 @@ cam:
   png_depth_scale: 1000. #for depth image in png format
   crop_edge: 10
 rendering:
-  n_stratified: 48
-  n_importance: 8
+  n_stratified: 32
+  n_importance: 12
   learnable_beta: True

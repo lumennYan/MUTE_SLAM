@@ -5,6 +5,7 @@ import numpy as np
 import torch
 import torch.multiprocessing
 import torch.multiprocessing as mp
+from .encoding import Maps
 
 from src import config
 from src.Mapper import Mapper
@@ -55,6 +56,9 @@ class ESLAM():
         self.scale = cfg['scale']
 
         self.use_tcnn = cfg['encoding']['tcnn']
+
+        #self.load_bound(cfg)
+        #self.submap_size = cfg['mapping']['submap_size']
 
         self.submap_dict_list = mp.Manager().list()
         self.submap_bound_list = mp.Manager().list()
@@ -139,7 +143,9 @@ class ESLAM():
         Args:
             cfg (dict): parsed config dict.
         """
+
         ####### Initializing Planes ############
+
         self.encoding_type = cfg['encoding']['type']
         self.encoding_levels = cfg['encoding']['n_levels']
         self.base_resolution = cfg['encoding']['base_resolution']

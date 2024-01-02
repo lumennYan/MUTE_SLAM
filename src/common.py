@@ -3,7 +3,6 @@ import torch
 import torch.nn.functional as F
 
 
-
 def quaternion_to_matrix(quaternions):
     """
     Convert rotations given as quaternions to rotation matrices.
@@ -232,6 +231,16 @@ def get_samples(H0, H1, W0, W1, n, H, W, fx, fy, cx, cy, c2ws, depths, colors, d
 
     return rays_o.reshape(-1, 3), rays_d.reshape(-1, 3), sample_depth.reshape(-1), sample_color.reshape(-1, 3)
 
+
+def get_rays_cam_cord(H, W, fx, fy, cx, cy):
+    """
+    Get rays for a whole image.
+
+    """
+    i, j = torch.meshgrid(torch.linspace(0, W-1, W), torch.linspace(0, H-1, H), indexing='xy')
+    dirs = torch.stack([(i-cx)/fx, -(j-cy)/fy, -torch.ones_like(i)], -1)
+    rays_d = dirs.reshape(H, W, 3)
+    return rays_d
 
 def matrix_to_cam_pose(batch_matrices, RT=True):
     """

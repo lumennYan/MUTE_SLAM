@@ -10,7 +10,6 @@ tracking:
   pixels: 2048
   iters: 15
 mapping:
-  submap_expand_size: 1.5
   every_frame: 2
   keyframe_every: 1
   pixels: 3200

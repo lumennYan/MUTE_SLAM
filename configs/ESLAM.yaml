@@ -33,8 +33,7 @@ tracking:
   w_depth: 1
   w_color: 5
 mapping:
-  submap_expand_size: 1.5
-  every_frame: 4
+  every_frame: 5
   joint_opt: True
   joint_opt_cam_lr: 0.001
   no_vis_on_first_frame: True
@@ -42,15 +41,15 @@ mapping:
   no_log_on_first_frame: True
   vis_freq: 40000
   vis_inside_freq: 40000 #each iteration
-  mesh_freq: 40000
-  ckpt_freq: 20000
-  keyframe_every: 4
+  mesh_freq: 10000
+  ckpt_freq: 10000
+  keyframe_every: 5
   mapping_window_size: 20
   keyframe_selection_method: 'overlap'
   lr_first_factor: 5
   lr_factor: 1
   pixels: 4000
-  iters_first: 1000
+  iters_first: 500
   iters: 8
   w_sdf_fs: 5
   w_sdf_center: 200
@@ -76,4 +75,4 @@ rendering:
   perturb: True
   learnable_beta: True
 model:
-  truncation: 0.05
+  truncation: 0.06

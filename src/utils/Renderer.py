@@ -81,41 +81,23 @@ class Renderer(object):
         ## in the range of 1.2*gt_depth, a uniform sampling
         z_vals_free = near + 1.2 * gt_depth_free * t_vals_uni
 
+        z_vals_end = z_vals_free[..., -1]
+        pts_end = rays_o + rays_d * z_vals_end[:, None]
+        inmap_mask = torch.ones(pts_end.shape[0], dtype=torch.bool, device=device)
+
+        for submap in submap_list:
+            cur_mask = torch.bitwise_and((pts_end > submap.boundary[0]).all(-1),
+                                           (pts_end < submap.boundary[1]).all(dim=-1))
+            inmap_mask = torch.bitwise_or(inmap_mask, cur_mask)
         z_vals, _ = torch.sort(torch.cat([z_vals_free, z_vals_surface], dim=-1), dim=-1)
+
+
         if self.perturb:
             z_vals = self.perturbation(z_vals)
 
-        '''
-        ### pixels without gt depth (importance sampling):
-        if not gt_mask.all():
-            with torch.no_grad():
-                rays_o_uni = rays_o[~gt_mask].detach()
-                rays_d_uni = rays_d[~gt_mask].detach()
-                det_rays_o = rays_o_uni.unsqueeze(-1)  # (N, 3, 1)
-                det_rays_d = rays_d_uni.unsqueeze(-1)  # (N, 3, 1)
-                t = (self.bound.unsqueeze(0) - det_rays_o)/det_rays_d  # (N, 3, 2)
-                far_bb, _ = torch.min(torch.max(t, dim=2)[0], dim=1)
-                far_bb = far_bb.unsqueeze(-1)
-                far_bb += 0.01
-
-                z_vals_uni = near * (1. - t_vals_uni) + far_bb * t_vals_uni  # uniform sampling between near and far_bb
-                if self.perturb:
-                    z_vals_uni = self.perturbation(z_vals_uni)
-                pts_uni = rays_o_uni.unsqueeze(1) + rays_d_uni.unsqueeze(1) * z_vals_uni.unsqueeze(-1)  # [n_rays, n_stratified, 3]
-
-                #pts_uni_nor = normalize_3d_coordinate(pts_uni.clone(), self.bound)  # [n_rays*n_stratified, 3]
-                features = decoders.get_feature_from_points(pts_uni, submap_list)
-                sdf_uni = decoders.get_raw_sdf(features)
-                sdf_uni = sdf_uni.reshape(*pts_uni.shape[0:2])  # [n_rays, n_stratified]
-                alpha_uni = self.sdf2alpha(sdf_uni, decoders.beta)
-                weights_uni = alpha_uni * torch.cumprod(torch.cat([torch.ones((alpha_uni.shape[0], 1), device=device)
-                                                        , (1. - alpha_uni + 1e-10)], -1), -1)[:, :-1]
-
-                z_vals_uni_mid = .5 * (z_vals_uni[..., 1:] + z_vals_uni[..., :-1])
-                z_samples_uni = sample_pdf(z_vals_uni_mid, weights_uni[..., 1:-1], n_importance, det=False, device=device)
-                z_vals_uni, ind = torch.sort(torch.cat([z_vals_uni, z_samples_uni], -1), -1)
-                z_vals[~gt_mask] = z_vals_uni
-        '''
+        z_vals = z_vals[inmap_mask]
+        rays_o = rays_o[inmap_mask]
+        rays_d = rays_d[inmap_mask]
 
         pts = rays_o[..., None, :] + rays_d[..., None, :] * \
               z_vals[..., :, None]  # [n_rays, n_stratified+n_importance, 3]
@@ -129,7 +111,7 @@ class Renderer(object):
         rendered_rgb = torch.sum(weights[..., None] * raw[..., :3], -2)
         rendered_depth = torch.sum(weights * z_vals, -1)
 
-        return rendered_depth, rendered_rgb, raw[..., -1], z_vals
+        return rendered_depth, rendered_rgb, raw[..., -1], z_vals, inmap_mask
 
     def sdf2alpha(self, sdf, beta=10):
         """

@@ -10,7 +10,6 @@ tracking:
   pixels: 1000
   iters: 10
 mapping:
-  submap_expand_size: 1
   pixels: 4000
   iters: 10
 cam:
