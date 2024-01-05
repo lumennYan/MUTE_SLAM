@@ -3,5 +3,5 @@ mapping:
   bound: [[-0.2,9.8],[-1.0,8.5],[-1.0,3.4]]
   marching_cubes_bound: [[-0.2,9.8],[-1.0,8.5],[-1.0,3.4]]
 data:
-  input_folder: ../myslam_submapping/Datasets/scans/scene0169_00
+  input_folder: Datasets/scans/scene0169_00
   output: output/scannet/scene0169_00

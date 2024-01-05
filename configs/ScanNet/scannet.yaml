@@ -10,10 +10,11 @@ tracking:
   pixels: 1000
   iters: 10
 mapping:
-  pixels: 3200
+  pixels: 2000
   iters: 10
   every_frame: 5
   keyframe_every: 5
+  map_expand_size: 1.5
 cam: 
   H: 480 
   W: 640

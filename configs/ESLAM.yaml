@@ -7,7 +7,6 @@ encoding:
   tcnn: False
   type: HashGrid
   n_levels: 16
-  desired_resolution: 512
   base_resolution: 16
   feature_dim: 2
 meshing:

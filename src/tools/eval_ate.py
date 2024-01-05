@@ -255,13 +255,13 @@ def evaluate_ate(first_list, second_list, plot="", _args=""):
         plt.savefig(args.plot, dpi=90)
 
     return {
-        "compared_pose_pairs": (len(trans_error)),
-        "absolute_translational_error.rmse": numpy.sqrt(numpy.dot(trans_error, trans_error) / len(trans_error)),
-        "absolute_translational_error.mean": numpy.mean(trans_error),
-        "absolute_translational_error.median": numpy.median(trans_error),
-        "absolute_translational_error.std": numpy.std(trans_error),
-        "absolute_translational_error.min": numpy.min(trans_error),
-        "absolute_translational_error.max": numpy.max(trans_error),
+        'compared_pose_pairs': (len(trans_error)),
+        'absolute_translational_error.rmse': numpy.sqrt(numpy.dot(trans_error, trans_error) / len(trans_error)),
+        'absolute_translational_error.mean': numpy.mean(trans_error),
+        'absolute_translational_error.median': numpy.median(trans_error),
+        'absolute_translational_error.std': numpy.std(trans_error),
+        'absolute_translational_error.min': numpy.min(trans_error),
+        'absolute_translational_error.max': numpy.max(trans_error),
     }
 
 
@@ -275,6 +275,10 @@ def evaluate(poses_gt, poses_est, plot):
     poses_est = dict([(i, poses_est[i]) for i in range(N)])
 
     results = evaluate_ate(poses_gt, poses_est, plot)
+    parent_path = output.rsplit('/', 1)[0]
+    with open(f'{parent_path}/ate.txt', 'a') as file:
+        for key, value in results.items():
+            file.write(f'{key}: {value}\n')
     print(results)
 
 

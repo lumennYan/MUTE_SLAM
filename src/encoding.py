@@ -16,14 +16,14 @@ class SubMap(nn.Module):
         with torch.no_grad():
             self.boundary = boundary.to(device)
             self.edge_length = self.boundary[1] - self.boundary[0]
-            self.desired_resolution_xy = (torch.pow(self.edge_length[0] * self.edge_length[1] * self.edge_length[2], 1/3) * 100).int().item()
+            self.desired_resolution_xy = (torch.pow(self.edge_length[0] * self.edge_length[1] * self.edge_length[2], 1/3) * 50).int().item()
             self.desired_resolution_xz = self.desired_resolution_xy
             self.desired_resolution_yz = self.desired_resolution_xy
             #self.desired_resolution_xz = (torch.sqrt(self.edge_length[0] * self.edge_length[2]) * 100).int().item()
             #self.desired_resolution_yz = (torch.sqrt(self.edge_length[1] * self.edge_length[2]) * 100).int().item()
-            self.log2_hashmap_size_xy = int(np.log2(self.desired_resolution_xy ** 2))-1
-            self.log2_hashmap_size_xz = int(np.log2(self.desired_resolution_xz ** 2))-1
-            self.log2_hashmap_size_yz = int(np.log2(self.desired_resolution_yz ** 2))-1
+            self.log2_hashmap_size_xy = int(np.log2(self.desired_resolution_xy ** 2))
+            self.log2_hashmap_size_xz = int(np.log2(self.desired_resolution_xz ** 2))
+            self.log2_hashmap_size_yz = int(np.log2(self.desired_resolution_yz ** 2))
             per_level_scale_xy = np.exp2(
                 np.log2(self.desired_resolution_xy / base_resolution) / (num_levels - 1))
             per_level_scale_xz = np.exp2(
