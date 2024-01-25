@@ -76,6 +76,9 @@ class Mapper(object):
         self.no_mesh_on_first_frame = cfg['mapping']['no_mesh_on_first_frame']
         self.keyframe_selection_method = cfg['mapping']['keyframe_selection_method']
         self.map_expand_size = cfg['mapping']['map_expand_size']
+        self.map_allo_threshold = cfg['mapping']['map_allo_threshold']
+        self.BA = cfg['mapping']['BA']
+        self.bundle_frames = cfg['mapping']['bundle_frames']
         self.keyframe_dict = []
         self.keyframe_list = []
         self.frame_reader = get_dataset(cfg, args, self.scale, device=self.device)
@@ -194,7 +197,7 @@ class Mapper(object):
         rays_d = get_rays_cam_cord(self.H, self.W, self.fx, self.fy, self.cx, self.cy).to(self.device)
         rays = torch.cat([rays_d, gt_color, gt_depth[..., None]], dim=-1)
         rays = rays.reshape(-1, rays.shape[-1])
-        sample_nums = int(self.H*self.W*0.01)
+        sample_nums = int(self.H*self.W*0.05)
         depth_mask = (rays[..., -1] > 0)
         rays_valid = rays[depth_mask]
         indexes = random.sample(range(0, rays_valid.shape[0]), sample_nums)
@@ -203,7 +206,7 @@ class Mapper(object):
         return rays
 
     def sample_global_rays(self):
-        indexes = torch.tensor(random.sample(range(self.rays.shape[0]*self.rays.shape[1]), 2*self.mapping_pixels), dtype=torch.long, device=self.device)
+        indexes = torch.tensor(random.sample(range(self.rays.shape[0]*self.rays.shape[1]), 4*self.mapping_pixels), dtype=torch.long, device=self.device)
         indexes, _ = torch.sort(indexes)
         sample_ids = indexes // self.rays.shape[1]
         sampled_rays = self.rays.reshape(-1, self.rays.shape[-1])[indexes]
@@ -303,7 +306,6 @@ class Mapper(object):
 
         if self.joint_opt:
             optimizer.param_groups[3]['lr'] = self.joint_opt_cam_lr
-            #optimizer.param_groups[2]['lr'] = self.joint_opt_cam_lr
 
         for joint_iter in range(iters):
             if (not (idx == 0 and self.no_vis_on_first_frame)):
@@ -351,8 +353,7 @@ class Mapper(object):
 
         return cur_c2w
 
-
-    def bundle_adjustment(self, keyframe_dict, lr_factor):
+    def bundle_adjustment(self, keyframe_dict, lr_factor, iters):
         """
         Mapping iterations. Sample pixels from selected keyframes,
         then optimize scene representation and camera poses(if joint_opt enables).
@@ -374,10 +375,8 @@ class Mapper(object):
         H, W, fx, fy, cx, cy = self.H, self.W, self.fx, self.fy, self.cx, self.cy
         cfg = self.cfg
         device = self.device
-        if len(keyframe_dict) == 0:
-            optimize_frame = []
 
-        optimize_frame = random_select(len(self.keyframe_dict), 40)
+        optimize_frame = random_select(len(self.keyframe_dict), self.bundle_frames)
 
         pixs_per_image = 4*self.mapping_pixels // len(optimize_frame)
 
@@ -420,7 +419,7 @@ class Mapper(object):
         optimizer.param_groups[2]['lr'] = cfg['mapping']['lr']['c_planes_lr'] * lr_factor
         optimizer.param_groups[3]['lr'] = self.joint_opt_cam_lr
 
-        for i in range(10):
+        for i in range(iters):
             ## We fix the oldest c2w to avoid drifting
             c2ws_ = torch.cat([c2ws[0:1], cam_pose_to_matrix(cam_poses)], dim=0)
 
@@ -454,7 +453,6 @@ class Mapper(object):
         for frame in optimize_frame[1:]:
             keyframe_dict[frame]['est_c2w'] = optimized_c2ws[camera_tensor_id]
             camera_tensor_id += 1
-
 
     def run(self):
         cfg = self.cfg
@@ -508,7 +506,7 @@ class Mapper(object):
                     pts_mask = torch.bitwise_and((pts > submap.boundary[0]).all(-1),
                                                  (pts < submap.boundary[1]).all(dim=-1))
                     pts = pts[~pts_mask]
-                if (pts.shape[0]/p_shape[0] > 0.25):
+                if (pts.shape[0]/p_shape[0] > self.map_allo_threshold):
                     pts_max, _ = torch.max(pts, dim=0)
                     pts_min, _ = torch.min(pts, dim=0)
                     boundary = torch.stack([pts_min-self.map_expand_size, pts_max+self.map_expand_size], dim=0)
@@ -568,10 +566,9 @@ class Mapper(object):
                 self.keyframe_dict.append({'gt_c2w': gt_c2w, 'idx': idx, 'color': gt_color.to(self.keyframe_device),
                                            'depth': gt_depth.to(self.keyframe_device), 'est_c2w': cur_c2w.clone()})
 
-
             init_phase = False
-            if len(self.keyframe_list) > 40 and idx % 20 == 0:
-                self.bundle_adjustment(self.keyframe_dict, lr_factor)
+            if self.BA and len(self.keyframe_list) > self.bundle_frames and idx % 20 == 0:
+                self.bundle_adjustment(self.keyframe_dict, lr_factor, iters)
 
             self.mapping_first_frame[0] = 1     # mapping of first frame is done, can begin tracking
 

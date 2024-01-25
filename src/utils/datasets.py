@@ -26,8 +26,10 @@ class SeqSampler(Sampler):
     def __len__(self) -> int:
         return self.n_samples
 
+
 def get_dataset(cfg, args, scale, device='cuda:0'):
     return dataset_dict[cfg['dataset']](cfg, args, scale, device=device)
+
 
 class BaseDataset(Dataset):
     def __init__(self, cfg, args, scale, device='cuda:0'):
@@ -92,6 +94,7 @@ class BaseDataset(Dataset):
         # return index, color_data.to(self.device, non_blocking=True), depth_data.to(self.device, non_blocking=True), pose.to(self.device, non_blocking=True)
         return index, color_data, depth_data, pose
 
+
 class Replica(BaseDataset):
     def __init__(self, cfg, args, scale, device='cuda:0'
                  ):
@@ -114,6 +117,7 @@ class Replica(BaseDataset):
             c2w[:3, 2] *= -1
             c2w = torch.from_numpy(c2w).float()
             self.poses.append(c2w)
+
 
 class ScanNet(BaseDataset):
     def __init__(self, cfg, args, scale, device='cuda:0'
@@ -143,6 +147,48 @@ class ScanNet(BaseDataset):
             c2w[:3, 2] *= -1
             c2w = torch.from_numpy(c2w).float()
             self.poses.append(c2w)
+
+
+class Azure(BaseDataset):
+    def __init__(self, cfg, args, scale, device='cuda:0'
+                 ):
+        super(Azure, self).__init__(cfg, args, scale, device)
+        self.color_paths = sorted(
+            glob.glob(os.path.join(self.input_folder, 'color', '*.jpg')))
+        self.depth_paths = sorted(
+            glob.glob(os.path.join(self.input_folder, 'depth', '*.png')))
+        self.n_img = len(self.color_paths)
+        self.load_poses(os.path.join(
+            self.input_folder, 'scene', 'trajectory.log'))
+
+    def load_poses(self, path):
+        self.poses = []
+        if os.path.exists(path):
+            with open(path) as f:
+                content = f.readlines()
+
+                # Load .log file.
+                for i in range(0, len(content), 5):
+                    # format %d (src) %d (tgt) %f (fitness)
+                    data = list(map(float, content[i].strip().split(' ')))
+                    ids = (int(data[0]), int(data[1]))
+                    fitness = data[2]
+
+                    # format %f x 16
+                    c2w = np.array(
+                        list(map(float, (''.join(
+                            content[i + 1:i + 5])).strip().split()))).reshape((4, 4))
+
+                    c2w[:3, 1] *= -1
+                    c2w[:3, 2] *= -1
+                    c2w = torch.from_numpy(c2w).float()
+                    self.poses.append(c2w)
+        else:
+            for i in range(self.n_img):
+                c2w = np.eye(4)
+                c2w = torch.from_numpy(c2w).float()
+                self.poses.append(c2w)
+
 
 class TUM_RGBD(BaseDataset):
     def __init__(self, cfg, args, scale, device='cuda:0'
@@ -237,5 +283,6 @@ class TUM_RGBD(BaseDataset):
 dataset_dict = {
     "replica": Replica,
     "scannet": ScanNet,
-    "tumrgbd": TUM_RGBD
+    "tumrgbd": TUM_RGBD,
+    "azure": Azure
 }

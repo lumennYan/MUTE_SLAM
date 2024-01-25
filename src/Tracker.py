@@ -48,13 +48,6 @@ class Tracker(object):
         self.base_resolution = eslam.base_resolution
         self.per_level_feature_dim = eslam.per_level_feature_dim
         self.use_tcnn = eslam.use_tcnn
-        #self.shared_planes_xy = eslam.shared_planes_xy
-        #self.shared_planes_xz = eslam.shared_planes_xz
-        #self.shared_planes_yz = eslam.shared_planes_yz
-
-        #self.shared_c_planes_xy = eslam.shared_c_planes_xy
-        #self.shared_c_planes_xz = eslam.shared_c_planes_xz
-        #self.shared_c_planes_yz = eslam.shared_c_planes_yz
 
         self.cam_lr_T = cfg['tracking']['lr_T']
         self.cam_lr_R = cfg['tracking']['lr_R']
@@ -241,7 +234,7 @@ class Tracker(object):
             if idx == 0 or self.gt_camera:
                 c2w = gt_c2w
                 if not self.no_vis_on_first_frame:
-                    self.visualizer.save_imgs(idx, 0, gt_depth, gt_color, c2w.squeeze(), self.maps, self.decoders)
+                    self.visualizer.save_imgs(idx, 0, gt_depth, gt_color, c2w.squeeze(), self.submap_list, self.decoders)
 
             else:
                 if self.const_speed_assumption and idx - 2 >= 0:

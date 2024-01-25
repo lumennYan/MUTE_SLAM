@@ -158,7 +158,7 @@ class Renderer(object):
                     ret = self.render_batch_ray(submap_list, decoders, rays_d_batch, rays_o_batch,
                                                 device, truncation, gt_depth=gt_depth_batch)
 
-                depth, color, _, _ = ret
+                depth, color, _, _, _ = ret
                 depth_list.append(depth.double())
                 color_list.append(color)
 

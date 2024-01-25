@@ -66,6 +66,7 @@ if __name__ == '__main__':
                 ## Visualize the trajectory ##
                 for i in tqdm(range(0, N+1)):
                     meshfile = f'{output}/mesh/{i:05d}_mesh_culled.ply'
+                    #meshfile = f'{output}/mesh/final_mesh_culled.ply'
                     if os.path.isfile(meshfile):
                         frontend.update_mesh(meshfile)
                     frontend.update_pose(1, estimate_c2w_list[i], gt=False)
@@ -76,6 +77,17 @@ if __name__ == '__main__':
                         if not args.no_gt_traj:
                             frontend.update_cam_trajectory(i, gt=True)
                     time.sleep(wait_time)
+
+                '''meshfile = f'{output}/mesh/final_mesh_culled.ply'
+                if os.path.isfile(meshfile):
+                    frontend.update_mesh(meshfile)
+                frontend.update_pose(1, estimate_c2w_list[-1], gt=False)
+                if not args.no_gt_traj:
+                    frontend.update_pose(1, gt_c2w_list[-1], gt=True)
+                frontend.update_cam_trajectory(-1, gt=False)
+                if not args.no_gt_traj:
+                    frontend.update_cam_trajectory(-1, gt=True)
+                time.sleep(wait_time)'''
 
                 frontend.terminate()
                 time.sleep(1)

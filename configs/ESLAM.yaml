@@ -11,9 +11,9 @@ encoding:
   feature_dim: 2
 meshing:
   level_set: 0
-  resolution: 0.001 #cm # Increase this number to speed up meshing algorithm
+  resolution: 0.01 #cm # Increase this number to speed up meshing algorithm
   eval_rec: False
-  mesh_bound_scale: 1.00
+  mesh_bound_scale: 1.02
 tracking:
   ignore_edge_W: 75
   ignore_edge_H: 75
@@ -44,6 +44,7 @@ mapping:
   ckpt_freq: 10000
   keyframe_every: 5
   mapping_window_size: 20
+  bundle_frames: 40
   keyframe_selection_method: 'overlap'
   lr_first_factor: 5
   lr_factor: 1

@@ -242,6 +242,7 @@ def get_rays_cam_cord(H, W, fx, fy, cx, cy):
     rays_d = dirs.reshape(H, W, 3)
     return rays_d
 
+
 def matrix_to_cam_pose(batch_matrices, RT=True):
     """
     Convert transformation matrix to quaternion and translation.
@@ -328,8 +329,8 @@ def get_sample_points(H, W, fx, fy, cx, cy, c2w, n, gt_depth, device):
     # pytorch's meshgrid has indexing='ij'
     depth_mask = (gt_depth > 0)
     i, j = torch.meshgrid(torch.linspace(0, W-1, W), torch.linspace(0, H-1, H))
-    i = i.t()  # transpose
-    j = j.t()
+    i = i.t().to(device) # transpose
+    j = j.t().to(device)
     i = i[depth_mask].reshape(-1)
     j = j[depth_mask].reshape(-1)
     gt_depth = gt_depth[depth_mask].reshape(-1)
@@ -366,7 +367,7 @@ def normalize_3d_coordinate(p, bound):
 
 def normalize_3d_coordinate_to_unit(p, bound):
     """
-    Normalize 3d coordinate to [-1, 1] range.
+    Normalize 3d coordinate to [0, 1] range.
     Args:
         p: (N, 3) 3d coordinate
         bound: (3, 2) min and max of each dimension

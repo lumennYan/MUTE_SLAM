@@ -1,6 +1,5 @@
 inherit_from: configs/ScanNet/scannet.yaml
-mapping:
-  map_expand_size: 1.5
 data:
   input_folder: Datasets/scans/scene0000_00
-  output: output/scannet/scene0000_00/2
+  output: output/scannet/scene0000_00/1
+

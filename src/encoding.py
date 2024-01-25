@@ -56,6 +56,7 @@ class SubMap(nn.Module):
             self.planes_xy, _ = get_encoder(encoding_type, input_dim,
                                             num_levels, level_dim, base_resolution, self.log2_hashmap_size_xy,
                                             self.desired_resolution_xy, align_corners)
+
             self.planes_xz, _ = get_encoder(encoding_type, input_dim,
                                             num_levels, level_dim, base_resolution, self.log2_hashmap_size_xz,
                                             self.desired_resolution_xz, align_corners)

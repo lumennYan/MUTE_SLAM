@@ -212,6 +212,7 @@ class Mesher(object):
 
         x_t, y_t, z_t = torch.from_numpy(x).float(), torch.from_numpy(y).float(), torch.from_numpy(z).float()
         grid_x, grid_y, grid_z = torch.meshgrid(x_t, y_t, z_t, indexing='xy')
+        print(grid_x.shape)
         grid_points_t = torch.stack([grid_x.reshape(-1), grid_y.reshape(-1), grid_z.reshape(-1)], dim=1)
 
         return {"grid_points": grid_points_t, "xyz": [x, y, z]}

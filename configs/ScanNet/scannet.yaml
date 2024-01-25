@@ -1,11 +1,11 @@
 dataset: 'scannet'
 meshing:
-  resolution: 0.02 #cm # Increase this number to speed up meshing algorithm
+  resolution: 0.01 #cm # Increase this number to speed up meshing algorithm
   eval_rec: False
 tracking:
-  ignore_edge_W: 75
-  ignore_edge_H: 75
-  lr_T: 0.0005
+  ignore_edge_W: 20
+  ignore_edge_H: 20
+  lr_T: 0.0015
   lr_R: 0.0025
   pixels: 1000
   iters: 10
@@ -15,6 +15,9 @@ mapping:
   every_frame: 5
   keyframe_every: 5
   map_expand_size: 1.5
+  map_allo_threshold: 0.25
+  BA: True
+  bundle_frames: 40
 cam: 
   H: 480 
   W: 640

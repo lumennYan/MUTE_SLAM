@@ -3,15 +3,19 @@ meshing:
   resolution: 0.01 #cm # Increase this number to speed up meshing algorithm
   eval_rec: True
 tracking:
-  ignore_edge_W: 75
-  ignore_edge_H: 75
+  ignore_edge_W: 20
+  ignore_edge_H: 20
   lr_T: 0.002
   lr_R: 0.001
   pixels: 1000
   iters: 10
 mapping:
-  pixels: 4000
+  pixels: 2400
   iters: 10
+  map_expand_size: 1
+  map_allo_threshold: 0.2
+  BA: True
+  bundle_frames: 40
 cam:
   H: 680
   W: 1200

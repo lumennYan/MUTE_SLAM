@@ -47,6 +47,7 @@ import open3d as o3d
 import torch
 import trimesh
 from scipy.spatial import cKDTree as KDTree
+from tqdm import tqdm
 
 def normalize(x):
     return x / np.linalg.norm(x)
@@ -149,6 +150,11 @@ def calc_3d_metric(rec_meshfile, gt_meshfile, align=True, num_points=450000):
     accuracy_rec *= 100  # convert to cm
     completion_rec *= 100  # convert to cm
     completion_ratio_rec *= 100  # convert to %
+    results = {'accuracy: ': accuracy_rec, 'completion: ': completion_rec, 'completion ratio: ': completion_ratio_rec}
+    parent_path = rec_meshfile.rsplit('/', 2)[0]
+    with open(f'{parent_path}/res_eval.txt', 'a') as file:
+        for key, value in results.items():
+            file.write(f'{key}: {value}\n')
     print('accuracy: ', accuracy_rec)
     print('completion: ', completion_rec)
     print('completion ratio: ', completion_ratio_rec)
@@ -194,7 +200,7 @@ def calc_2d_metric(rec_meshfile, gt_meshfile, align=True, n_imgs=1000):
     vis.create_window(width=W, height=H)
     vis.get_render_option().mesh_show_back_face = True
     errors = []
-    for i in range(n_imgs):
+    for i in tqdm(range(n_imgs)):
         while True:
             # sample view, and check if unseen region is not inside the camera view
             # if inside, then needs to resample
@@ -245,7 +251,11 @@ def calc_2d_metric(rec_meshfile, gt_meshfile, align=True, n_imgs=1000):
 
     errors = np.array(errors)
     # from m to cm
-    print('Depth L1: ', errors.mean()*100)
+    result = errors.mean()*100
+    parent_path = rec_meshfile.rsplit('/', 2)[0]
+    with open(f'{parent_path}/res_eval.txt', 'a') as file:
+        file.write(f'Depth L1: {result}\n')
+    print('Depth L1: ', result)
 
 
 if __name__ == '__main__':
