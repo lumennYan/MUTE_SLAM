@@ -104,15 +104,12 @@ class Decoders(nn.Module):
             feat.append(xy + xz + yz)
         feat = torch.cat(feat, dim=-1)  # [N,64]
         '''
-
         xy = planes_xy(p_nor[..., [0, 1]])
-        #xy = planes_xy(p_nor[..., 0])
         xz = planes_xz(p_nor[..., [0, 2]])
-        #xz = planes_xz(p_nor[..., 1])
         yz = planes_yz(p_nor[..., [1, 2]])
-        #yz = planes_yz(p_nor[..., 2])
+
         feat = xy + xz + yz  # [N, 32]
-        #feat = xy
+
         return feat
 
     def get_raw_sdf(self, p_nor, all_planes):
@@ -124,8 +121,8 @@ class Decoders(nn.Module):
         Returns:
             sdf (tensor): raw SDF
         """
-        #planes_xy, planes_xz, planes_yz, c_planes_xy, c_planes_xz, c_planes_yz = all_planes
-        planes_xy, planes_xz, planes_yz = all_planes
+
+        planes_xy, planes_xz, planes_yz, _, _, _ = all_planes
         feat = self.sample_plane_feature(p_nor, planes_xy, planes_xz, planes_yz)
 
         h = feat
@@ -145,8 +142,8 @@ class Decoders(nn.Module):
         Returns:
             rgb (tensor): raw RGB
         """
-        #planes_xy, planes_xz, planes_yz, c_planes_xy, c_planes_xz, c_planes_yz = all_planes\
-        planes_xy, planes_xz, planes_yz = all_planes
+
+        _, _, _, planes_xy, planes_xz, planes_yz = all_planes
         c_feat = self.sample_plane_feature(p_nor, planes_xy, planes_xz, planes_yz)
 
         h = c_feat

@@ -4,4 +4,4 @@ mapping:
   marching_cubes_bound: [[-2.7,6.8],[-3.8,5.7],[-2.7,3.1]]
 data:
   input_folder: Datasets/Replica/office4
-  output: output/Replica/office4
+  output: output/Replica/office4/6

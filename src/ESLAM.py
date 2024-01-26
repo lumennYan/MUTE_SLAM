@@ -92,11 +92,6 @@ class ESLAM():
             'W'], cfg['cam']['fx'], cfg['cam']['fy'], cfg['cam']['cx'], cfg['cam']['cy']
         self.update_cam()
 
-        self.seed = cfg['seed']
-        np.random.seed(self.seed)
-        torch.manual_seed(self.seed)
-        torch.cuda.manual_seed(self.seed)
-
         model = config.get_model(cfg)
         self.shared_decoders = model
 
@@ -132,7 +127,8 @@ class ESLAM():
         self.mapping_cnt.share_memory_()
 
         ## Moving feature planes and decoders to the processing device
-        for shared_planes in [self.shared_planes_xy, self.shared_planes_xz, self.shared_planes_yz]:
+        for shared_planes in [self.shared_planes_xy, self.shared_planes_xz, self.shared_planes_yz,
+                              self.shared_c_planes_xy,  self.shared_c_planes_xz,  self.shared_c_planes_yz]:
             shared_planes = shared_planes.to(self.device)
             shared_planes.share_memory()
 
@@ -194,13 +190,6 @@ class ESLAM():
 
         # scale the bound if there is a global scaling factor
         self.bound = torch.from_numpy(np.array(cfg['mapping']['bound'])*self.scale).float()
-
-
-        #bound_dividable = 0.02
-        # enlarge the bound a bit to allow it dividable by bound_dividable
-        #self.bound[:, 1] = (((self.bound[:, 1]-self.bound[:, 0]) /
-                            #bound_dividable).int()+1)*bound_dividable+self.bound[:, 0]
-
         self.shared_decoders.bound = self.bound
 
     def init_planes(self, cfg):
@@ -210,23 +199,18 @@ class ESLAM():
         Args:
             cfg (dict): parsed config dict.
         """
-        '''
-        self.coarse_planes_res = cfg['planes_res']['coarse']
-        self.fine_planes_res = cfg['planes_res']['fine']
-
-        self.coarse_c_planes_res = cfg['c_planes_res']['coarse']
-        self.fine_c_planes_res = cfg['c_planes_res']['fine']
-
-        c_dim = cfg['model']['c_dim']
-        '''
 
         ####### Initializing Planes ############
-
+        edge_length = self.bound[:, 1] - self.bound[:, 0]
+        edge_length = edge_length.squeeze()
+        self.desired_resolution = (
+                    torch.pow(edge_length[0] * edge_length[1] * edge_length[2], 1 / 3) * 50).int().item()
         self.encoding_type = cfg['encoding']['type']
         self.encoding_levels = cfg['encoding']['n_levels']
-        self.desired_resolution = cfg['encoding']['desired_resolution']
+        #self.desired_resolution = cfg['encoding']['desired_resolution']
         self.base_resolution = cfg['encoding']['base_resolution']
-        self.log2_hashmap_size = cfg['encoding']['log2_hashmap_size']
+        self.log2_hashmap_size = int(np.log2(self.desired_resolution ** 2))
+        #self.log2_hashmap_size = cfg['encoding']['log2_hashmap_size']
         self.per_level_feature_dim = cfg['encoding']['feature_dim']
 
 
@@ -244,6 +228,10 @@ class ESLAM():
             planes_xz = tcnn.Encoding(n_input_dims=2, encoding_config=self.encoding_dict, dtype=torch.float32)
             planes_yz = tcnn.Encoding(n_input_dims=2, encoding_config=self.encoding_dict, dtype=torch.float32)
 
+            c_planes_xy = tcnn.Encoding(n_input_dims=2, encoding_config=self.encoding_dict, dtype=torch.float32)
+            c_planes_xz = tcnn.Encoding(n_input_dims=2, encoding_config=self.encoding_dict, dtype=torch.float32)
+            c_planes_yz = tcnn.Encoding(n_input_dims=2, encoding_config=self.encoding_dict, dtype=torch.float32)
+
         else:
             planes_xy, _ = get_encoder(encoding=self.encoding_type, input_dim=2,
                                        num_levels=self.encoding_levels,
@@ -260,11 +248,29 @@ class ESLAM():
                                        level_dim=self.per_level_feature_dim,
                                        base_resolution=self.base_resolution, log2_hashmap_size=self.log2_hashmap_size,
                                        desired_resolution=self.desired_resolution)
-
+            c_planes_xy, _ = get_encoder(encoding=self.encoding_type, input_dim=2,
+                                       num_levels=self.encoding_levels,
+                                       level_dim=self.per_level_feature_dim,
+                                       base_resolution=self.base_resolution, log2_hashmap_size=self.log2_hashmap_size,
+                                       desired_resolution=self.desired_resolution)
+            c_planes_xz, _ = get_encoder(encoding=self.encoding_type, input_dim=2,
+                                       num_levels=self.encoding_levels,
+                                       level_dim=self.per_level_feature_dim,
+                                       base_resolution=self.base_resolution, log2_hashmap_size=self.log2_hashmap_size,
+                                       desired_resolution=self.desired_resolution)
+            c_planes_yz, _ = get_encoder(encoding=self.encoding_type, input_dim=2,
+                                       num_levels=self.encoding_levels,
+                                       level_dim=self.per_level_feature_dim,
+                                       base_resolution=self.base_resolution, log2_hashmap_size=self.log2_hashmap_size,
+                                       desired_resolution=self.desired_resolution)
 
         self.shared_planes_xy = planes_xy
         self.shared_planes_xz = planes_xz
         self.shared_planes_yz = planes_yz
+
+        self.shared_c_planes_xy = c_planes_xy
+        self.shared_c_planes_xz = c_planes_xz
+        self.shared_c_planes_yz = c_planes_yz
 
     def tracking(self, rank):
         """

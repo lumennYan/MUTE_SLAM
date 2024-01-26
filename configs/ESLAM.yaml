@@ -3,15 +3,14 @@ verbose: False
 device: "cuda:0"
 #keyframe_device: "cuda:0" ## Change this to "cpu" to reduce GPU memory usage
 keyframe_device: "cpu"
-seed: 42
 encoding:
   tcnn: False
   type: HashGrid
-  n_levels: 8
+  n_levels: 16
   desired_resolution: 512
   base_resolution: 16
   log2_hashmap_size: 17
-  feature_dim: 4
+  feature_dim: 2
 meshing:
   level_set: 0
   resolution: 0.001 #cm # Increase this number to speed up meshing algorithm
@@ -20,11 +19,11 @@ meshing:
 tracking:
   ignore_edge_W: 75
   ignore_edge_H: 75
-  vis_freq: 4000
-  vis_inside_freq: 400
+  vis_freq: 40000
+  vis_inside_freq: 40000
   const_speed_assumption: True
   no_vis_on_first_frame: True
-  gt_camera: Fasle
+  gt_camera: False
   lr_T: 0.001
   lr_R: 0.001
   pixels: 2000
@@ -35,18 +34,18 @@ tracking:
   w_depth: 1
   w_color: 5
 mapping:
-  every_frame: 4
+  every_frame: 5
   joint_opt: True
   joint_opt_cam_lr: 0.001
   no_vis_on_first_frame: True
   no_mesh_on_first_frame: True
   no_log_on_first_frame: True
-  vis_freq: 4000
-  vis_inside_freq: 400 #each iteration
-  mesh_freq: 4000
-  ckpt_freq: 2000
-  keyframe_every: 4
-  mapping_window_size: 20
+  vis_freq: 40000
+  vis_inside_freq: 40000 #each iteration
+  mesh_freq: 40000
+  ckpt_freq: 20000
+  keyframe_every: 5
+  mapping_window_size: 10
   keyframe_selection_method: 'overlap'
   lr_first_factor: 5
   lr_factor: 1

@@ -79,13 +79,13 @@ class Tracker(object):
         self.estimate_c2w_list = eslam.estimate_c2w_list
         self.truncation = eslam.truncation
 
-        self.shared_planes_xy = eslam.shared_planes_xy
-        self.shared_planes_xz = eslam.shared_planes_xz
-        self.shared_planes_yz = eslam.shared_planes_yz
+        self.planes_xy = eslam.shared_planes_xy
+        self.planes_xz = eslam.shared_planes_xz
+        self.planes_yz = eslam.shared_planes_yz
 
-        #self.shared_c_planes_xy = eslam.shared_c_planes_xy
-        #self.shared_c_planes_xz = eslam.shared_c_planes_xz
-        #self.shared_c_planes_yz = eslam.shared_c_planes_yz
+        self.c_planes_xy = eslam.shared_c_planes_xy
+        self.c_planes_xz = eslam.shared_c_planes_xz
+        self.c_planes_yz = eslam.shared_c_planes_yz
 
         self.cam_lr_T = cfg['tracking']['lr_T']
         self.cam_lr_R = cfg['tracking']['lr_R']
@@ -187,8 +187,8 @@ class Tracker(object):
         Returns:
             loss (float): The value of loss.
         """
-        #all_planes = (self.planes_xy, self.planes_xz, self.planes_yz, self.c_planes_xy, self.c_planes_xz, self.c_planes_yz)
-        all_planes = (self.shared_planes_xy, self.shared_planes_xz, self.shared_planes_yz)
+        all_planes = (self.planes_xy, self.planes_xz, self.planes_yz, self.c_planes_xy, self.c_planes_xz, self.c_planes_yz)
+        #all_planes = (self.shared_planes_xy, self.shared_planes_xz, self.shared_planes_yz)
         device = self.device
         H, W, fx, fy, cx, cy = self.H, self.W, self.fx, self.fy, self.cx, self.cy
 
@@ -279,8 +279,8 @@ class Tracker(object):
                 None
         """
         device = self.device
-        #all_planes = (self.planes_xy, self.planes_xz, self.planes_yz, self.c_planes_xy, self.c_planes_xz, self.c_planes_yz)
-        all_planes = (self.shared_planes_xy, self.shared_planes_xz, self.shared_planes_yz)
+        all_planes = (self.planes_xy, self.planes_xz, self.planes_yz, self.c_planes_xy, self.c_planes_xz, self.c_planes_yz)
+        #all_planes = (self.shared_planes_xy, self.shared_planes_xz, self.shared_planes_yz)
         if self.verbose:
             pbar = self.frame_loader
         else:
