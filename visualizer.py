@@ -62,36 +62,27 @@ if __name__ == '__main__':
                                         save_rendering=args.save_rendering, near=0,
                                         estimate_c2w_list=estimate_c2w_list, gt_c2w_list=gt_c2w_list)
                 frontend.start()
-
+                frontend.update_mesh(meshfile)
                 ## Visualize the trajectory ##
-                for i in tqdm(range(0, N+1)):
-                    meshfile = f'{output}/mesh/{i:05d}_mesh_culled.ply'
+                '''for i in tqdm(range(0, N+1)):
+                    #meshfile = f'{output}/mesh/{i:05d}_mesh_culled.ply'
                     #meshfile = f'{output}/mesh/final_mesh_culled.ply'
-                    if os.path.isfile(meshfile):
-                        frontend.update_mesh(meshfile)
-                    frontend.update_pose(1, estimate_c2w_list[i], gt=False)
-                    if not args.no_gt_traj:
-                        frontend.update_pose(1, gt_c2w_list[i], gt=True)
+                    #if os.path.isfile(meshfile):
+                        #frontend.update_mesh(meshfile)
+                    #frontend.update_pose(1, estimate_c2w_list[i], gt=False)
+                    #if not args.no_gt_traj:
+                        #frontend.update_pose(1, gt_c2w_list[i], gt=True)
                     if i % 10 == 0:
                         frontend.update_cam_trajectory(i, gt=False)
                         if not args.no_gt_traj:
                             frontend.update_cam_trajectory(i, gt=True)
-                    time.sleep(wait_time)
-
-                '''meshfile = f'{output}/mesh/final_mesh_culled.ply'
-                if os.path.isfile(meshfile):
-                    frontend.update_mesh(meshfile)
-                frontend.update_pose(1, estimate_c2w_list[-1], gt=False)
+                    time.sleep(wait_time)'''
+                frontend.update_cam_trajectory(N, gt=False)
                 if not args.no_gt_traj:
-                    frontend.update_pose(1, gt_c2w_list[-1], gt=True)
-                frontend.update_cam_trajectory(-1, gt=False)
-                if not args.no_gt_traj:
-                    frontend.update_cam_trajectory(-1, gt=True)
-                time.sleep(wait_time)'''
-
-                frontend.terminate()
+                    frontend.update_cam_trajectory(N, gt=True)
+                #frontend.terminate()
                 time.sleep(1)
 
                 if args.save_rendering:
-                    time.sleep(1)
+                    time.sleep(10)
                     os.system(f"ffmpeg -f image2 -r 30 -pattern_type glob -i '{output}/tmp_rendering/*.jpg' -y {output}/vis.mp4")

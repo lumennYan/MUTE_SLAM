@@ -1,7 +1,7 @@
 import argparse
 
 from src import config
-from src.ESLAM import ESLAM
+from src.MUTE_SLAM import MUTE_SLAM
 
 def main():
     parser = argparse.ArgumentParser(
@@ -16,9 +16,9 @@ def main():
 
     cfg = config.load_config(args.config, 'configs/ESLAM.yaml')
     
-    eslam = ESLAM(cfg, args)
+    slam = MUTE_SLAM(cfg, args)
 
-    eslam.run()
+    slam.run()
 
 if __name__ == '__main__':
     main()
