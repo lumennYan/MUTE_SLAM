@@ -6,14 +6,15 @@ class SubMap(nn.Module):
     def __init__(self, device, boundary, use_tcnn=False, encoding_type='hashgrid',
                  input_dim=2, num_levels=16, level_dim=2, base_resolution=16, align_corners=True):
         super().__init__()
+        self.device = device
+        self.boundary = boundary.to(self.device)
+
         with torch.no_grad():
-            self.boundary = boundary.to(device)
             edge_length = self.boundary[1] - self.boundary[0]
             desired_resolution = (torch.pow(edge_length[0] * edge_length[1] * edge_length[2], 1/3) * 50).int().item()
             log2_hashmap_size = int(np.log2(desired_resolution ** 2))
             per_level_scale = np.exp2(
                 np.log2(desired_resolution / base_resolution) / (num_levels - 1))
-        self.device = device
         if use_tcnn:
             import tinycudann as tcnn
             encoding_dict = dict(n_levels=num_levels, otype=encoding_type,
@@ -49,7 +50,8 @@ class SubMap(nn.Module):
                                             num_levels, level_dim, base_resolution, log2_hashmap_size,
                                             desired_resolution, align_corners)
 
-        for planes in [self.planes_xy, self.planes_xz, self.planes_yz, self.c_planes_xy, self.c_planes_xz, self.c_planes_yz]:
+        all_planes = nn.ModuleList([self.planes_xy, self.planes_xz, self.planes_yz, self.c_planes_xy, self.c_planes_xz, self.c_planes_yz])
+        for planes in all_planes:
             planes = planes.to(self.device)
 
 
