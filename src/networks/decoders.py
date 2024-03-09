@@ -75,10 +75,11 @@ class Decoders(nn.Module):
         indices_list = []
         pre_mask = torch.zeros(pts.shape[0], dtype=torch.bool, device=self.device)
         for submap in submap_list:
-            pts_mask = torch.logiacl_and((pts[..., :] > submap.boundary[0]).all(dim=-1),
+            pts_mask = torch.logical_and((pts[..., :] > submap.boundary[0]).all(dim=-1),
                                          (pts[..., :] < submap.boundary[1]).all(dim=-1))
-            pts_mask = torch.logiacl_and(pts_mask, torch.logiacl_xor(pre_mask, pts_mask))
-            pre_mask = torch.logical_or(pre_mask, pts_mask)
+            pts_mask = torch.logical_and(pts_mask, torch.logical_xor(pre_mask, pts_mask))
+            #pre_mask = torch.logical_or(pre_mask, pts_mask)
+            pre_mask = pts_mask
             indices_list.append(index[pts_mask])
             if self.use_tcnn:
                 p_nor = normalize_3d_coordinate_to_unit(pts[pts_mask], submap.boundary)
@@ -114,7 +115,8 @@ class Decoders(nn.Module):
                 pts_mask = torch.logical_and((pts[..., :] > submap.boundary[0]).all(dim=-1),
                                             (pts[..., :] < submap.boundary[1]).all(dim=-1))
                 pts_mask = torch.logical_and(pts_mask, torch.logical_xor(pre_mask, pts_mask))
-                pre_mask = torch.logical_or(pre_mask, pts_mask)
+                #pre_mask = torch.logical_or(pre_mask, pts_mask)
+                pre_mask = pts_mask
                 indices_list.append(index[pts_mask])
                 if self.use_tcnn:
                     p_nor = normalize_3d_coordinate_to_unit(pts[pts_mask], submap.boundary)

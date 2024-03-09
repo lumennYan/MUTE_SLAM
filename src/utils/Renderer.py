@@ -63,22 +63,22 @@ class Renderer(object):
 
         ### pixels with gt depth:
         gt_depth = gt_depth.reshape(-1, 1)
-        gt_mask = (gt_depth > 0).squeeze()
+        '''gt_mask = (gt_depth > 0).squeeze()
         gt_nonezero = gt_depth[gt_mask]
         rays_o = rays_o[gt_mask]
-        rays_d = rays_d[gt_mask]
+        rays_d = rays_d[gt_mask]'''
 
         ## Sampling points around the gt depth (surface)
-        gt_depth_surface = gt_nonezero.expand(-1, n_importance)
+        gt_depth_surface = gt_depth.expand(-1, n_importance)
         ## in the range of gt_depth +-1.5 truncation, a uniform sampling
         z_vals_surface = gt_depth_surface - (1.5 * truncation) + (3 * truncation * t_vals_surface)
 
-        gt_depth_free = gt_nonezero.expand(-1, n_stratified)
+        gt_depth_free = gt_depth.expand(-1, n_stratified)
         ## in the range of 1.2*gt_depth, a uniform sampling
         z_vals_free = near + 1.2 * gt_depth_free * t_vals_uni
 
         z_vals_end = z_vals_free[..., -1]
-        pts_end = rays_o + rays_d * z_vals_end[:, None]
+        pts_end = rays_o + rays_d * z_vals_end[..., None]
         inmap_mask = torch.ones(pts_end.shape[0], dtype=torch.bool, device=device)
 
         ## filter out rays that end outside all current sub_maps

@@ -18,7 +18,7 @@ mapping:
   keyframe_every: 10
   mapping_window_size: 10
   pixels: 2000
-  iters_first: 1000
+  iters_first: 500
   iters: 10
   map_expand_size: 2.5
   map_allo_threshold: 0.25
@@ -38,7 +38,6 @@ data:
   output: output/Apartment/1
 meshing:
   resolution: 0.02
-  marching_cubes_bound: [[-5.8,11.3],[-4.0,4.5],[-7.9,4.9]]
 rendering:
   n_stratified: 32
   n_importance: 12

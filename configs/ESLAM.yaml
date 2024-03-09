@@ -17,15 +17,15 @@ meshing:
 tracking:
   ignore_edge_W: 75
   ignore_edge_H: 75
-  vis_freq: 40000
-  vis_inside_freq: 40000
+  vis_freq: 10000
+  vis_inside_freq: 10000
   const_speed_assumption: True
   no_vis_on_first_frame: True
   gt_camera: False
   lr_T: 0.001
   lr_R: 0.001
   pixels: 2000
-  iters: 4
+  iters: 10
   w_sdf_fs: 10
   w_sdf_center: 200
   w_sdf_tail: 50
@@ -38,8 +38,8 @@ mapping:
   no_vis_on_first_frame: True
   no_mesh_on_first_frame: True
   no_log_on_first_frame: True
-  vis_freq: 40000
-  vis_inside_freq: 40000 #each iteration
+  vis_freq: 500
+  vis_inside_freq: 500 #each iteration
   mesh_freq: 10000
   ckpt_freq: 10000
   keyframe_every: 5
@@ -50,7 +50,7 @@ mapping:
   lr_factor: 1
   pixels: 4000
   iters_first: 500
-  iters: 8
+  iters: 10
   w_sdf_fs: 5
   w_sdf_center: 200
   w_sdf_tail: 10

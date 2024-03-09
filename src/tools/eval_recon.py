@@ -106,7 +106,7 @@ def calc_3d_metric(rec_meshfile, gt_meshfile, align=True, num_points=450000):
     accuracy_rec = accuracy(gt_pc_tri.vertices, rec_pc_tri.vertices)
     completion_rec = completion(gt_pc_tri.vertices, rec_pc_tri.vertices)
     completion_ratio_rec = completion_ratio(
-        gt_pc_tri.vertices, rec_pc_tri.vertices, dist_th=0.05)
+        gt_pc_tri.vertices, rec_pc_tri.vertices, dist_th=0.01)
     accuracy_rec *= 100  # convert to cm
     completion_rec *= 100  # convert to cm
     completion_ratio_rec *= 100  # convert to %

@@ -158,14 +158,17 @@ class Tracker(object):
                                                                                  self.ignore_edge_W, W-self.ignore_edge_W,
                                                                                  batch_size, H, W, fx, fy, cx, cy, c2w,
                                                                                  gt_depth, gt_color, device)
-
+        depth_mask = (batch_gt_depth > 0)
+        batch_gt_depth = batch_gt_depth[depth_mask]
+        batch_gt_color = batch_gt_color[depth_mask]
+        batch_rays_o = batch_rays_o[depth_mask]
+        batch_rays_d = batch_rays_d[depth_mask]
         depth, color, sdf, z_vals, inmap_mask = self.renderer.render_batch_ray(self.submap_list, self.decoders, batch_rays_d, batch_rays_o,
                                                                    self.device, self.truncation, gt_depth=batch_gt_depth)
 
         ## Filtering the rays for which the rendered depth error is greater than 10 times of the median depth error
-        depth_mask = (batch_gt_depth > 0)
-        batch_gt_depth = batch_gt_depth[depth_mask][inmap_mask]
-        batch_gt_color = batch_gt_color[depth_mask][inmap_mask]
+        batch_gt_depth = batch_gt_depth[inmap_mask]
+        batch_gt_color = batch_gt_color[inmap_mask]
 
         depth_error = (batch_gt_depth - depth.detach()).abs()
         depth_error_median = depth_error.median()

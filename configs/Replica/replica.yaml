@@ -10,7 +10,7 @@ tracking:
   pixels: 1000
   iters: 10
 mapping:
-  pixels: 2400
+  pixels: 2000
   iters: 10
   map_expand_size: 1
   map_allo_threshold: 0.2

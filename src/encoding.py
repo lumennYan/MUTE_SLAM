@@ -11,44 +11,51 @@ class SubMap(nn.Module):
 
         with torch.no_grad():
             edge_length = self.boundary[1] - self.boundary[0]
-            desired_resolution = (torch.pow(edge_length[0] * edge_length[1] * edge_length[2], 1/3) * 50).int().item()
-            log2_hashmap_size = int(np.log2(desired_resolution ** 2))
-            per_level_scale = np.exp2(
-                np.log2(desired_resolution / base_resolution) / (num_levels - 1))
+            desired_resolution_sdf = (torch.pow(edge_length[0] * edge_length[1] * edge_length[2], 1/3) * 50).int().item()
+            log2_hashmap_size_sdf = int(np.log2(desired_resolution_sdf ** 2))
+            desired_resolution_color = (torch.pow(edge_length[0] * edge_length[1] * edge_length[2], 1/3) * 100).int().item()
+            log2_hashmap_size_color = int(np.log2((desired_resolution_color/3) ** 2))
+            per_level_scale_sdf = np.exp2(
+                np.log2(desired_resolution_sdf / base_resolution) / (num_levels - 1))
+            per_level_scale_color = np.exp2(
+                np.log2(desired_resolution_color / base_resolution) / (num_levels - 1))
         if use_tcnn:
             import tinycudann as tcnn
-            encoding_dict = dict(n_levels=num_levels, otype=encoding_type,
+            encoding_dict_sdf = dict(n_levels=num_levels, otype=encoding_type,
                                          n_features_per_level=level_dim,
-                                         log2_hashmap_size=log2_hashmap_size, base_resolution=base_resolution,
-                                         per_level_scale=per_level_scale)
-            self.planes_xy = tcnn.Encoding(input_dim, encoding_config=encoding_dict, dtype=torch.float32)
-            self.planes_xz = tcnn.Encoding(input_dim, encoding_config=encoding_dict, dtype=torch.float32)
-            self.planes_yz = tcnn.Encoding(input_dim, encoding_config=encoding_dict, dtype=torch.float32)
-            self.c_planes_xy = tcnn.Encoding(input_dim, encoding_config=encoding_dict, dtype=torch.float32)
-            self.c_planes_xz = tcnn.Encoding(input_dim, encoding_config=encoding_dict, dtype=torch.float32)
-            self.c_planes_yz = tcnn.Encoding(input_dim, encoding_config=encoding_dict, dtype=torch.float32)
+                                         log2_hashmap_size=log2_hashmap_size_sdf, base_resolution=base_resolution,
+                                         per_level_scale=per_level_scale_sdf)
+            encoding_dict_color = dict(n_levels=num_levels, otype=encoding_type,
+                                         n_features_per_level=level_dim,
+                                         log2_hashmap_size=log2_hashmap_size_color, base_resolution=base_resolution,
+                                         per_level_scale=per_level_scale_color)
+            self.planes_xy = tcnn.Encoding(input_dim, encoding_config=encoding_dict_sdf, dtype=torch.float32)
+            self.planes_xz = tcnn.Encoding(input_dim, encoding_config=encoding_dict_sdf, dtype=torch.float32)
+            self.planes_yz = tcnn.Encoding(input_dim, encoding_config=encoding_dict_sdf, dtype=torch.float32)
+            self.c_planes_xy = tcnn.Encoding(input_dim, encoding_config=encoding_dict_color, dtype=torch.float32)
+            self.c_planes_xz = tcnn.Encoding(input_dim, encoding_config=encoding_dict_color, dtype=torch.float32)
+            self.c_planes_yz = tcnn.Encoding(input_dim, encoding_config=encoding_dict_color, dtype=torch.float32)
 
         else:
             self.planes_xy, _ = get_encoder(encoding_type, input_dim,
-                                            num_levels, level_dim, base_resolution, log2_hashmap_size,
-                                            desired_resolution, align_corners)
-
+                                            num_levels, level_dim, base_resolution, log2_hashmap_size_sdf,
+                                            desired_resolution_sdf, align_corners)
             self.planes_xz, _ = get_encoder(encoding_type, input_dim,
-                                            num_levels, level_dim, base_resolution, log2_hashmap_size,
-                                            desired_resolution, align_corners)
+                                            num_levels, level_dim, base_resolution, log2_hashmap_size_sdf,
+                                            desired_resolution_sdf, align_corners)
             self.planes_yz, _ = get_encoder(encoding_type, input_dim,
-                                            num_levels, level_dim, base_resolution, log2_hashmap_size,
-                                            desired_resolution, align_corners)
+                                            num_levels, level_dim, base_resolution, log2_hashmap_size_sdf,
+                                            desired_resolution_sdf, align_corners)
 
             self.c_planes_xy, _ = get_encoder(encoding_type, input_dim,
-                                            num_levels, level_dim, base_resolution, log2_hashmap_size,
-                                            desired_resolution, align_corners)
+                                            num_levels, level_dim, base_resolution, log2_hashmap_size_color,
+                                            desired_resolution_color, align_corners)
             self.c_planes_xz, _ = get_encoder(encoding_type, input_dim,
-                                            num_levels, level_dim, base_resolution, log2_hashmap_size,
-                                            desired_resolution, align_corners)
+                                            num_levels, level_dim, base_resolution, log2_hashmap_size_color,
+                                            desired_resolution_color, align_corners)
             self.c_planes_yz, _ = get_encoder(encoding_type, input_dim,
-                                            num_levels, level_dim, base_resolution, log2_hashmap_size,
-                                            desired_resolution, align_corners)
+                                            num_levels, level_dim, base_resolution, log2_hashmap_size_color,
+                                            desired_resolution_color, align_corners)
 
         all_planes = nn.ModuleList([self.planes_xy, self.planes_xz, self.planes_yz, self.c_planes_xy, self.c_planes_xz, self.c_planes_yz])
         for planes in all_planes:

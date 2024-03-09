@@ -2,4 +2,6 @@ inherit_from: configs/Replica/replica.yaml
 data:
   input_folder: Datasets/Replica/room1
   output: output/Replica/room1/7
+mapping:
+  map_expand_size: 1
   
