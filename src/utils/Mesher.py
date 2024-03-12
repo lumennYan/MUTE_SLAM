@@ -217,7 +217,7 @@ class Mesher(object):
                 z.append(self.eval_points(pnts.to(device), submap_list, decoders).cpu().numpy()[:, -1])
             z = np.concatenate(z, axis=0)
 
-            z[~mask] = -1
+            z[~mask] = 1
             print('getting mesh')
             try:
                 if version.parse(

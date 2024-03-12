@@ -78,6 +78,7 @@ class Tracker(object):
         self.H, self.W, self.fx, self.fy, self.cx, self.cy = slam.H, slam.W, slam.fx, slam.fy, slam.cx, slam.cy
         self.decoders = self.shared_decoders
 
+
     def get_map_from_mapper(self):
         """
         Get the sub_maps and corresponding parameters from mapper

@@ -63,10 +63,6 @@ class Renderer(object):
 
         ### pixels with gt depth:
         gt_depth = gt_depth.reshape(-1, 1)
-        '''gt_mask = (gt_depth > 0).squeeze()
-        gt_nonezero = gt_depth[gt_mask]
-        rays_o = rays_o[gt_mask]
-        rays_d = rays_d[gt_mask]'''
 
         ## Sampling points around the gt depth (surface)
         gt_depth_surface = gt_depth.expand(-1, n_importance)

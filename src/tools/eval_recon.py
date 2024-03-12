@@ -1,4 +1,3 @@
-
 import argparse
 import random
 
@@ -106,7 +105,7 @@ def calc_3d_metric(rec_meshfile, gt_meshfile, align=True, num_points=450000):
     accuracy_rec = accuracy(gt_pc_tri.vertices, rec_pc_tri.vertices)
     completion_rec = completion(gt_pc_tri.vertices, rec_pc_tri.vertices)
     completion_ratio_rec = completion_ratio(
-        gt_pc_tri.vertices, rec_pc_tri.vertices, dist_th=0.01)
+        gt_pc_tri.vertices, rec_pc_tri.vertices, dist_th=0.05)
     accuracy_rec *= 100  # convert to cm
     completion_rec *= 100  # convert to cm
     completion_ratio_rec *= 100  # convert to %
@@ -207,8 +206,8 @@ def calc_2d_metric(rec_meshfile, gt_meshfile, align=True, n_imgs=1000):
         ours_depth = np.asarray(ours_depth)
         vis.remove_geometry(rec_mesh, reset_bounding_box=True,)
 
-        #errors += [np.abs(gt_depth-ours_depth).mean()]
-        errors += [np.linalg.norm(gt_depth-ours_depth)/gt_depth.reshape(-1).shape[0]]
+        errors += [np.abs(gt_depth-ours_depth).mean()]
+        #errors += [np.linalg.norm(gt_depth-ours_depth)/gt_depth.reshape(-1).shape[0]]
     errors = np.array(errors)
     # from m to cm
 

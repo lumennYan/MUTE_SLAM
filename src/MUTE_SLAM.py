@@ -173,9 +173,8 @@ class MUTE_SLAM():
             processes.append(p)
         for p in processes:
             p.join()
-        allocated, reserved = self.get_gpu_memory_usage()
-        print('memory_allocated', allocated)
-        print('memory_reserved', reserved)
+
+
 # This part is required by torch.multiprocessing
 if __name__ == '__main__':
     pass

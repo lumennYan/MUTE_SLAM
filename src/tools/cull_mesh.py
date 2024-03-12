@@ -1,5 +1,3 @@
-
-
 import argparse
 
 import numpy as np
@@ -93,6 +91,7 @@ def cull_mesh(mesh_file, cfg, args, device, estimate_c2w_list=None):
 
     mesh.export(output_file)
 
+
 ## It is also possible to use the cull_mesh function in the following way, where the ground truth camera poses are used.
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -105,6 +104,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
     args.input_folder = None
 
-    cfg = config.load_config(args.config, 'configs/ESLAM.yaml')
+    cfg = config.load_config(args.config, 'configs/SLAM.yaml')
 
     cull_mesh(args.input_mesh, cfg, args, 'cuda')

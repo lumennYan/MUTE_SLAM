@@ -1,4 +1,3 @@
-
 import argparse
 import os
 import numpy
@@ -277,7 +276,7 @@ if __name__ == '__main__':
                         help='output folder, this have higher priority, can overwrite the one inconfig file')
 
     args = parser.parse_args()
-    cfg = config.load_config(args.config, 'configs/ESLAM.yaml')
+    cfg = config.load_config(args.config, 'configs/SLAM.yaml')
     scale = cfg['scale']
     output = cfg['data']['output'] if args.output is None else args.output
     ckptsdir = f'{output}/ckpts'

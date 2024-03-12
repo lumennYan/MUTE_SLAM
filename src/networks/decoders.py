@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from src.common import normalize_3d_coordinate, normalize_3d_coordinate_to_unit
 
+
 class Decoders(nn.Module):
     """
     Decoders for SDF and RGB.
@@ -12,7 +13,6 @@ class Decoders(nn.Module):
         truncation: truncation of SDF
         n_blocks: number of MLP blocks
         learnable_beta: whether to learn beta
-
     """
     def __init__(self, device, in_dim=32, hidden_size=32, truncation=0.08, n_blocks=2, learnable_beta=True, use_tcnn=False):
         super().__init__()
@@ -180,7 +180,7 @@ class Decoders(nn.Module):
             features, c_features, out_bound_indices = self.get_feature_from_points_for_mesher(p, submap_list)
 
             sdf = self.get_raw_sdf(features).detach()
-            sdf.index_put_((out_bound_indices,), torch.tensor([-1.], device=self.device))
+            sdf.index_put_((out_bound_indices,), torch.tensor([1.], device=self.device))
             rgb = self.get_raw_rgb(c_features).detach()
 
             raw = torch.cat([rgb, sdf.unsqueeze(-1)], dim=-1)

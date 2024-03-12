@@ -23,7 +23,7 @@ if __name__ == '__main__':
                         action='store_true', help='Setting the camera to top view. Otherwise, the camera is at the first frame\'s pose.')
     parser.add_argument('--no_gt_traj', action='store_true', help='not visualize gt trajectory')
     args = parser.parse_args()
-    cfg = config.load_config(args.config, 'configs/ESLAM.yaml')
+    cfg = config.load_config(args.config, 'configs/SLAM.yaml')
     scale = cfg['scale']
     mesh_resolution = cfg['meshing']['resolution']
     if mesh_resolution <= 0.01:
@@ -64,23 +64,22 @@ if __name__ == '__main__':
                 frontend.start()
                 frontend.update_mesh(meshfile)
                 ## Visualize the trajectory ##
-                '''for i in tqdm(range(0, N+1)):
-                    #meshfile = f'{output}/mesh/{i:05d}_mesh_culled.ply'
-                    #meshfile = f'{output}/mesh/final_mesh_culled.ply'
-                    #if os.path.isfile(meshfile):
-                        #frontend.update_mesh(meshfile)
-                    #frontend.update_pose(1, estimate_c2w_list[i], gt=False)
-                    #if not args.no_gt_traj:
-                        #frontend.update_pose(1, gt_c2w_list[i], gt=True)
+                for i in tqdm(range(0, N+1)):
+                    meshfile = f'{output}/mesh/{i:05d}_mesh_culled.ply'
+                    if os.path.isfile(meshfile):
+                        frontend.update_mesh(meshfile)
+                    frontend.update_pose(1, estimate_c2w_list[i], gt=False)
+                    if not args.no_gt_traj:
+                        frontend.update_pose(1, gt_c2w_list[i], gt=True)
                     if i % 10 == 0:
                         frontend.update_cam_trajectory(i, gt=False)
                         if not args.no_gt_traj:
                             frontend.update_cam_trajectory(i, gt=True)
-                    time.sleep(wait_time)'''
+                    time.sleep(wait_time)
                 frontend.update_cam_trajectory(N, gt=False)
                 if not args.no_gt_traj:
                     frontend.update_cam_trajectory(N, gt=True)
-                #frontend.terminate()
+                frontend.terminate()
                 time.sleep(1)
 
                 if args.save_rendering:

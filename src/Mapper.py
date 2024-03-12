@@ -288,7 +288,6 @@ class Mapper(object):
 
         if self.joint_opt:
             optimizer.param_groups[3]['lr'] = self.joint_opt_cam_lr
-            #optimizer.param_groups[2]['lr'] = self.joint_opt_cam_lr
 
         for joint_iter in range(iters):
             if (not (idx == 0 and self.no_vis_on_first_frame)):
@@ -343,22 +342,13 @@ class Mapper(object):
 
     def bundle_adjustment(self, keyframe_dict, lr_factor):
         """
-        Mapping iterations. Sample pixels from selected keyframes,
-        then optimize scene representation and camera poses(if joint_opt enables).
-
+        Global bundle ajustment. Randomly sample keyframes from keyframe database and joint optimize poses, submaps and
+        MLPs.
         Args:
-            iters (int): number of mapping iterations.
-            lr_factor (float): the factor to times on current lr.
-            idx (int): the index of current frame
-            cur_gt_color (tensor): gt_color image of the current camera.
-            cur_gt_depth (tensor): gt_depth image of the current camera.
-            gt_cur_c2w (tensor): groundtruth camera to world matrix corresponding to current frame.
             keyframe_dict (list): a list of dictionaries of keyframes info.
-            keyframe_list (list): list of keyframes indices.
-            cur_c2w (tensor): the estimated camera to world matrix of current frame.
-
+            lr_factor (float): the factor to times on current lr.
         Returns:
-            cur_c2w: return the updated cur_c2w, return the same input cur_c2w if no joint_opt
+            None
         """
         H, W, fx, fy, cx, cy = self.H, self.W, self.fx, self.fy, self.cx, self.cy
         cfg = self.cfg
@@ -450,16 +440,13 @@ class Mapper(object):
 
     def run(self):
         cfg = self.cfg
-        #all_planes = (self.planes_xy, self.planes_xz, self.planes_yz)
         idx, gt_color, gt_depth, gt_c2w = self.frame_reader[0]
         data_iterator = iter(self.frame_loader)
-
         ## Fixing the first camera pose
         self.estimate_c2w_list[0] = gt_c2w
 
         init_phase = True
         prev_idx = -1
-        #frame_after_create_keyframe = 0
 
         while True:
             while True:
