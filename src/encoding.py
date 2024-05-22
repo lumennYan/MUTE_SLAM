@@ -11,7 +11,7 @@ class SubMap(nn.Module):
 
         with torch.no_grad():
             edge_length = self.boundary[1] - self.boundary[0]
-            desired_resolution_sdf = (torch.pow(edge_length[0] * edge_length[1] * edge_length[2], 1/3) * 50).int().item()
+            desired_resolution_sdf = (torch.pow(edge_length[0] * edge_length[1] * edge_length[2], 1/3) * 100).int().item()
             log2_hashmap_size_sdf = int(np.log2(desired_resolution_sdf ** 2))
             desired_resolution_color = (torch.pow(edge_length[0] * edge_length[1] * edge_length[2], 1/3) * 100).int().item()
             log2_hashmap_size_color = int(np.log2((desired_resolution_color/3) ** 2))

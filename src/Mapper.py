@@ -447,6 +447,7 @@ class Mapper(object):
 
         init_phase = True
         prev_idx = -1
+        free_pts = None
 
         while True:
             while True:
@@ -483,13 +484,20 @@ class Mapper(object):
                 dis_mask = (square_dis < 10*torch.sum(square_dis)/square_dis.shape[0])
                 pts = torch.cat([pts[dis_mask], cur_c2w[None, :3, -1]], dim=0)
                 p_shape = pts.shape
+
                 for submap in self.submap_list:
-                    pts_mask = torch.bitwise_and((pts > submap.boundary[0]).all(-1),
-                                                 (pts < submap.boundary[1]).all(-1))
+                    pts_mask = torch.bitwise_and((pts > submap.boundary[0]).all(dim=-1),
+                                                 (pts < submap.boundary[1]).all(dim=-1))
                     pts = pts[~pts_mask]
-                if (pts.shape[0]/p_shape[0] > self.map_allo_threshold):
-                    pts_max, _ = torch.max(pts, dim=0)
-                    pts_min, _ = torch.min(pts, dim=0)
+                if pts.shape[0]/p_shape[0] > self.map_allo_threshold:
+                    if free_pts is not None:
+                        free_pts = torch.cat([free_pts, pts], dim=0)
+                        pts_max, _ = torch.max(free_pts, dim=0)
+                        pts_min, _ = torch.min(free_pts, dim=0)
+                        free_pts = None
+                    else:
+                        pts_max, _ = torch.max(pts, dim=0)
+                        pts_min, _ = torch.min(pts, dim=0)
                     boundary = torch.stack([pts_min-self.map_expand_size, pts_max+self.map_expand_size], dim=0)
                     cur_submap = SubMap(device=self.device, boundary=boundary, use_tcnn=self.use_tcnn,
                                                     encoding_type=self.encoding_type,
@@ -505,6 +513,31 @@ class Mapper(object):
                     self.keyframe_dict.append({'gt_c2w': gt_c2w, 'idx': idx, 'color': gt_color.to(self.keyframe_device),
                                                'depth': gt_depth.to(self.keyframe_device), 'est_c2w': cur_c2w.clone()})
                     create_submap = 1
+                elif pts.shape[0] / p_shape[0] > self.map_allo_threshold / 4:
+                    if free_pts is None:
+                        free_pts = pts
+                    else:
+                        free_pts = torch.cat([free_pts, pts], dim=0)
+                elif free_pts is not None and free_pts.shape[0] > 250:
+                    pts_max, _ = torch.max(free_pts, dim=0)
+                    pts_min, _ = torch.min(free_pts, dim=0)
+                    free_pts = None
+                    boundary = torch.stack([pts_min-self.map_expand_size, pts_max+self.map_expand_size], dim=0)
+                    cur_submap = SubMap(device=self.device, boundary=boundary, use_tcnn=self.use_tcnn,
+                                                    encoding_type=self.encoding_type,
+                                                    input_dim=2,
+                                                    num_levels=self.encoding_levels,
+                                                    level_dim=self.per_level_feature_dim,
+                                                    base_resolution=self.base_resolution)
+                    self.submap_list.append(cur_submap)
+                    state_dict_cpu = {key: value.to('cpu') for key, value in self.submap_list[-1].state_dict().items()}
+                    self.submap_dict_list.append(state_dict_cpu)
+                    self.submap_bound_list.append(boundary.to('cpu'))
+                    self.keyframe_list.append(idx)
+                    self.keyframe_dict.append({'gt_c2w': gt_c2w, 'idx': idx, 'color': gt_color.to(self.keyframe_device),
+                                               'depth': gt_depth.to(self.keyframe_device), 'est_c2w': cur_c2w.clone()})
+                    create_submap = 1
+
             else:
                 lr_factor = cfg['mapping']['lr_first_factor']
                 iters = cfg['mapping']['iters_first']
