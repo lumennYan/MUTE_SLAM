@@ -279,10 +279,33 @@ class TUM_RGBD(BaseDataset):
         pose[:3, 3] = pvec[:3]
         return pose
 
+class Kinect(BaseDataset):
+    def __init__(self, cfg, args, scale, device='cuda:0'
+                 ):
+        super(Azure, self).__init__(cfg, args, scale, device)
+        self.color_paths = sorted(
+            glob.glob(os.path.join(self.input_folder, 'color', '*.jpg')))
+        self.depth_paths = sorted(
+            glob.glob(os.path.join(self.input_folder, 'depth', '*.png')))
+        self.n_img = len(self.color_paths)
+        self.load_poses(f'{self.input_folder}/traj.txt')
+
+    def load_poses(self, path):
+        self.poses = []
+        with open(path, "r") as f:
+            lines = f.readlines()
+        for i in range(self.n_img):
+            line = lines[i]
+            c2w = np.array(list(map(float, line.split()))).reshape(4, 4)
+            c2w[:3, 1] *= -1
+            c2w[:3, 2] *= -1
+            c2w = torch.from_numpy(c2w).float()
+            self.poses.append(c2w)
 
 dataset_dict = {
     "replica": Replica,
     "scannet": ScanNet,
     "tumrgbd": TUM_RGBD,
-    "azure": Azure
+    "azure": Azure,
+    "kinect": Kinect
 }

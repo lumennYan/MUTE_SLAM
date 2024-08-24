@@ -1,4 +1,4 @@
-name: eslam
+name: mute_slam
 channels:
   - pytorch3d
   - pytorch
