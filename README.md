@@ -1,5 +1,5 @@
 # MUTE-SLAM: Real-Time Neural SLAM with Multiple Tri-plane Hash Representations
-This repository is the official implementation of ‘MUTE-SLAM: Real-Time Neural SLAM with Multiple Tri-plane Hash Representations’
+This repository is the official implementation of [MUTE-SLAM: Real-Time Neural SLAM with Multiple Tri-plane Hash Representations](https://arxiv.org/abs/2403.17765)
 ## Installation
 First you can create the environment and install the necessary dependencies. You can easily achieve this by using anaconda.
 ```bash
