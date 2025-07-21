@@ -4,12 +4,8 @@ This repository is the official implementation of [MUTE-SLAM: Real-Time Neural S
 First you can create the environment and install the necessary dependencies. You can easily achieve this by using anaconda.
 ```bash
 # Create the environment
-conda create -n mute_slam python=3.7
+conda env create -f environment.yaml
 conda activate mute_slam
-# Install pytorch according to your cuda version
-conda install pytorch==1.11.0 torchvision==0.12.0 torchaudio==0.11.0 cudatoolkit=11.3 -c pytorch
-# Install the dependencies
-pip install -r requirements.txt
 ```
 We use the encoding from [torch-ngp](https://github.com/ashawkey/torch-ngp) by default, you can also use [tiny-cuda-nn](https://github.com/NVlabs/tiny-cuda-nn) as another option.
 To install tiny-cuda-nn, run:
